@@ -1,0 +1,35 @@
+[project]
+name = "mymcp"
+version = "0.1.0"
+description = "轻量级 MCP 自定义命令服务，支持服务聚合和热更新"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "mcp>=0.1.0",
+    "httpx>=0.25.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "watchdog>=3.0.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.scripts]
+mymcp = "src.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+

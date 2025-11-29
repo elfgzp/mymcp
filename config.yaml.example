@@ -1,0 +1,109 @@
+# MyMCP 配置文件示例
+
+# MCP 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 0  # MCP 服务器使用 stdio，不需要端口
+  admin_port: 18888  # 管理端端口，使用不常用的端口避免冲突
+
+# 命令配置
+commands:
+  - name: "get_weather"
+    description: "获取天气信息"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "https://api.weather.com/v1/current"
+      params:
+        city: "{city}"
+      auth:
+        ref: "weather_api_auth"
+      timeout: 30
+      response_format: "json"
+    parameters:
+      - name: "city"
+        type: "string"
+        required: true
+        description: "城市名称"
+
+  - name: "run_script"
+    description: "执行自定义脚本"
+    type: "script"
+    enabled: true
+    script:
+      interpreter: "python3"
+      path: "./scripts/example.py"
+      args:
+        - "{arg1}"
+        - "{arg2}"
+      env:
+        API_KEY: "${API_KEY}"
+    parameters:
+      - name: "arg1"
+        type: "string"
+        required: true
+        description: "参数1"
+      - name: "arg2"
+        type: "string"
+        required: false
+        description: "参数2"
+
+# MCP 服务聚合配置
+mcp_servers:
+  - name: "filesystem"
+    description: "文件系统操作服务"
+    enabled: true
+    connection:
+      type: "stdio"
+      command: "uvx"
+      args:
+        - "mcp-server-filesystem"
+        - "/path/to/allowed/dir"
+    prefix: "fs"
+    timeout: 30
+    retry_on_failure: true
+    auto_reconnect: true
+
+  - name: "github"
+    description: "GitHub API 服务"
+    enabled: false  # 暂时禁用
+    connection:
+      type: "stdio"
+      command: "uvx"
+      args:
+        - "github:modelcontextprotocol/servers"
+        - "github-mcp"
+    prefix: "gh"
+    timeout: 30
+
+# 鉴权配置
+auth_configs:
+  - name: "weather_api_auth"
+    type: "api_key"
+    api_key:
+      location: "query"
+      name: "api_key"
+      value: "${WEATHER_API_KEY}"
+
+  - name: "github_auth"
+    type: "bearer_token"
+    bearer_token:
+      token: "${GITHUB_TOKEN}"
+
+  - name: "basic_auth_example"
+    type: "basic_auth"
+    basic_auth:
+      username: "${USERNAME}"
+      password: "${PASSWORD}"
+
+# 全局配置
+global:
+  default_timeout: 30
+  max_retries: 3
+  retry_delay: 1
+  log_level: "INFO"
+  log_file: "mcp.log"
+  hot_reload: true
+  hot_reload_interval: 2
+

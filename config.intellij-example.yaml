@@ -1,0 +1,322 @@
+# IntelliJ-RunControl 集成配置示例
+# 参考: https://github.com/SagenKoder/IntelliJ-RunControl
+
+# MCP 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 0
+  admin_port: 18888
+
+# IntelliJ-RunControl 鉴权配置
+auth_configs:
+  - name: "intellij_auth"
+    type: "custom_header"
+    custom_header:
+      headers:
+        X-IntelliJ-Token: "${INTELLIJ_RUNCONTROL_TOKEN}"  # 从环境变量读取 Token
+
+# IntelliJ-RunControl 命令配置
+commands:
+  # 列出所有项目
+  - name: "intellij_list_projects"
+    description: "列出 IntelliJ IDEA 中所有打开的项目"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/projects"
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters: []
+
+  # 列出所有运行配置
+  - name: "intellij_list_run_configs"
+    description: "列出所有运行配置（可选：指定项目）"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 获取运行配置详情
+  - name: "intellij_get_run_config"
+    description: "获取指定运行配置的详细信息"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs/{name}"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 启动运行配置
+  - name: "intellij_run_config"
+    description: "启动指定的运行配置"
+    type: "http"
+    enabled: true
+    http:
+      method: "POST"
+      url: "http://127.0.0.1:17777/run-configs/{name}/run"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 30
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 调试模式启动
+  - name: "intellij_debug_config"
+    description: "以调试模式启动指定的运行配置"
+    type: "http"
+    enabled: true
+    http:
+      method: "POST"
+      url: "http://127.0.0.1:17777/run-configs/{name}/debug"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 30
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 停止运行配置
+  - name: "intellij_stop_config"
+    description: "停止正在运行的配置"
+    type: "http"
+    enabled: true
+    http:
+      method: "POST"
+      url: "http://127.0.0.1:17777/run-configs/{name}/stop"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 重启运行配置
+  - name: "intellij_restart_config"
+    description: "重启指定的运行配置"
+    type: "http"
+    enabled: true
+    http:
+      method: "POST"
+      url: "http://127.0.0.1:17777/run-configs/{name}/restart"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 30
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 列出日志源
+  - name: "intellij_list_logs"
+    description: "列出指定运行配置的可用日志源"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs/{name}/logs"
+      params:
+        project: "{project}"  # 可选参数
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+
+  # 读取日志
+  - name: "intellij_get_logs"
+    description: "读取指定运行配置的日志（支持分页）"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs/{name}/logs/{source}"
+      params:
+        project: "{project}"  # 可选参数
+        offset: "{offset}"
+        limit: "{limit}"
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "source"
+        type: "string"
+        required: true
+        description: "日志源（如 console, server.log）"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+      - name: "offset"
+        type: "number"
+        required: false
+        description: "偏移量（默认 0）"
+        default: 0
+      - name: "limit"
+        type: "number"
+        required: false
+        description: "限制数量（默认 100）"
+        default: 100
+
+  # 获取日志尾部
+  - name: "intellij_tail_logs"
+    description: "获取指定运行配置日志的最后 N 行"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs/{name}/logs/{source}/tail"
+      params:
+        project: "{project}"  # 可选参数
+        lines: "{lines}"
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "source"
+        type: "string"
+        required: true
+        description: "日志源（如 console）"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+      - name: "lines"
+        type: "number"
+        required: false
+        description: "行数（默认 100）"
+        default: 100
+
+  # 搜索日志
+  - name: "intellij_search_logs"
+    description: "在指定运行配置的日志中搜索内容"
+    type: "http"
+    enabled: true
+    http:
+      method: "GET"
+      url: "http://127.0.0.1:17777/run-configs/{name}/logs/{source}/search"
+      params:
+        project: "{project}"  # 可选参数
+        q: "{query}"
+        maxResults: "{maxResults}"
+      auth:
+        ref: "intellij_auth"
+      timeout: 10
+      response_format: "json"
+    parameters:
+      - name: "name"
+        type: "string"
+        required: true
+        description: "运行配置名称"
+      - name: "source"
+        type: "string"
+        required: true
+        description: "日志源（如 server.log）"
+      - name: "query"
+        type: "string"
+        required: true
+        description: "搜索关键词"
+      - name: "project"
+        type: "string"
+        required: false
+        description: "项目名称（可选）"
+      - name: "maxResults"
+        type: "number"
+        required: false
+        description: "最大结果数（默认 50）"
+        default: 50
+
+# MCP 服务聚合配置（如果有其他 MCP 服务）
+mcp_servers: []
+
+# 全局配置
+global:
+  default_timeout: 30
+  max_retries: 3
+  retry_delay: 1
+  log_level: "INFO"
+  hot_reload: true
+  hot_reload_interval: 2
+

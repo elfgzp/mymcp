@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "mymcp",
+        "--config",
+        "/absolute/path/to/your/config.yaml"
+      ],
+      "env": {
+        "INTELLIJ_RUNCONTROL_TOKEN": "your_token_here"
+      }
+    }
+  }
+}
+
