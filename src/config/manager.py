@@ -59,7 +59,23 @@ class ConfigManager:
         self.config = self.load_config()
         
         if self.on_config_changed and old_config:
-            self.on_config_changed(old_config, self.config)
+            # 如果回调是协程，需要异步执行
+            import asyncio
+            import inspect
+            if inspect.iscoroutinefunction(self.on_config_changed):
+                # 创建任务异步执行
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self.on_config_changed(old_config, self.config))
+                    else:
+                        loop.run_until_complete(self.on_config_changed(old_config, self.config))
+                except RuntimeError:
+                    # 如果没有事件循环，创建新的
+                    asyncio.run(self.on_config_changed(old_config, self.config))
+            else:
+                # 同步回调
+                self.on_config_changed(old_config, self.config)
 
     def start_watching(self) -> None:
         """开始监控配置文件"""

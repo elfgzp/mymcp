@@ -29,6 +29,12 @@ uvx mymcp --config config.yaml
 # 启动管理端（默认端口 18888，避免冲突）
 uvx mymcp --config config.yaml --admin
 
+# 启动管理端并自动打开浏览器
+uvx mymcp --config config.yaml --admin --open-admin
+
+# 使用环境变量控制自动打开浏览器
+MYMCP_OPEN_ADMIN=1 uvx mymcp --config config.yaml --admin
+
 # 自定义管理端端口
 uvx mymcp --config config.yaml --admin --admin-port 19999
 ```

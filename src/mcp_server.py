@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import sys
-from typing import Any
+from typing import Any, Optional
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -17,11 +17,15 @@ from .mcp_client.manager import McpClientManager
 
 logger = logging.getLogger(__name__)
 
+# 全局变量存储 McpServer 实例（用于管理端访问）
+_global_mcp_servers: dict[str, "McpServer"] = {}
+
 
 class McpServer:
     """MCP 服务器"""
 
     def __init__(self, config_path: str):
+        self.config_path = str(config_path)
         self.config_manager = ConfigManager(config_path)
         self.config = self.config_manager.load_config()
         
@@ -36,6 +40,9 @@ class McpServer:
         # 创建 MCP 服务器
         self.server = Server("mymcp")
         self._setup_handlers()
+        
+        # 注册到全局字典
+        _global_mcp_servers[self.config_path] = self
 
     def _setup_handlers(self) -> None:
         """设置 MCP 服务器处理器"""
@@ -103,7 +110,8 @@ class McpServer:
 
     async def run(self) -> None:
         """运行服务器"""
-        # 初始化 MCP 客户端
+        # 异步初始化 MCP 客户端（不阻塞）
+        # initialize() 内部会创建异步任务，不会阻塞
         await self.mcp_client_manager.initialize()
         
         # 启动配置监控
@@ -125,13 +133,21 @@ class McpServer:
     @classmethod
     async def main(cls, config_path: str) -> None:
         """主函数"""
+        import sys
+        # 将日志输出到 stderr，避免干扰 MCP 协议的 stdout
         logging.basicConfig(
             level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            stream=sys.stderr
         )
         
         server = cls(config_path)
         await server.run()
+
+
+def get_mcp_server(config_path: str) -> Optional["McpServer"]:
+    """获取全局的 McpServer 实例"""
+    return _global_mcp_servers.get(str(config_path))
 
 
 async def run_server(config_path: str) -> None:

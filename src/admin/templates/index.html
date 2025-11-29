@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MyMCP Admin</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 { 
+            color: #333; 
+            margin-bottom: 30px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 16px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            color: #007bff;
+        }
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .server-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .server-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .server-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        .server-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        .status-connecting { background: #ffc107; color: #000; }
+        .status-connected { background: #28a745; color: #fff; }
+        .status-error { background: #dc3545; color: #fff; }
+        .status-disconnected { background: #6c757d; color: #fff; }
+        .status-unknown { background: #e9ecef; color: #666; }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        .server-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .server-info-item {
+            margin: 5px 0;
+        }
+        .error-message {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .refresh-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .refresh-btn:hover {
+            background: #0056b3;
+        }
+        .command-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .command-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .command-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .command-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        .command-source {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+        .source-local {
+            background: #17a2b8;
+            color: #fff;
+        }
+        .source-mcp {
+            background: #28a745;
+            color: #fff;
+        }
+        .command-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .command-info-item {
+            margin: 5px 0;
+        }
+        .parameters-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .parameter-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-left: 3px solid #007bff;
+            border-radius: 2px;
+        }
+        .parameter-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .parameter-type {
+            color: #6c757d;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .parameter-required {
+            color: #dc3545;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        .parameter-description {
+            color: #666;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MyMCP 管理界面</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('servers')">MCP 服务</button>
+            <button class="tab" onclick="showTab('commands')">命令</button>
+            <button class="tab" onclick="showTab('api')">API 文档</button>
+        </div>
+        
+        <div id="servers" class="tab-content active">
+            <button class="refresh-btn" onclick="loadServers()">刷新</button>
+            <div id="servers-list" class="loading">加载中...</div>
+        </div>
+        
+        <div id="commands" class="tab-content">
+            <button class="refresh-btn" onclick="loadCommands()">刷新</button>
+            <div id="commands-list" class="loading">加载中...</div>
+        </div>
+        
+        <div id="api" class="tab-content">
+            <h2>API 文档</h2>
+            <p><a href="/docs" target="_blank">Swagger UI</a> | <a href="/redoc" target="_blank">ReDoc</a></p>
+        </div>
+    </div>
+    
+    <script>
+        function showTab(tabName) {
+            // 隐藏所有标签页内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的标签页
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (tabName === 'servers') {
+                loadServers();
+            } else if (tabName === 'commands') {
+                loadCommands();
+            }
+        }
+        
+        async function loadServers() {
+            const listEl = document.getElementById('servers-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch('/api/mcp-servers');
+                const data = await response.json();
+                
+                if (data.servers && data.servers.length > 0) {
+                    listEl.innerHTML = data.servers.map(server => `
+                        <div class="server-card">
+                            <div class="server-header">
+                                <div>
+                                    <span class="server-name">${escapeHtml(server.name)}</span>
+                                    <span class="server-status status-${getStatusClass(server.connection_status)}">
+                                        ${getStatusText(server.connection_status)}
+                                    </span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" ${server.enabled ? 'checked' : ''} 
+                                           onchange="toggleServer('${escapeHtml(server.name)}', this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="server-info">
+                                <div class="server-info-item"><strong>描述:</strong> ${escapeHtml(server.description || '无')}</div>
+                                <div class="server-info-item"><strong>前缀:</strong> ${escapeHtml(server.prefix || '无')}</div>
+                                <div class="server-info-item"><strong>连接类型:</strong> ${escapeHtml(server.connection.type)}</div>
+                                ${server.connection_error ? `<div class="error-message">错误: ${escapeHtml(server.connection_error)}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<div class="loading">没有配置 MCP 服务</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="error-message">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        async function toggleServer(name, enabled) {
+            try {
+                const response = await fetch(`/api/mcp-servers/${encodeURIComponent(name)}/toggle`, {
+                    method: 'PATCH'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 重新加载列表
+                    setTimeout(() => loadServers(), 500);
+                } else {
+                    alert('操作失败: ' + (data.detail || '未知错误'));
+                    // 恢复开关状态
+                    loadServers();
+                }
+            } catch (error) {
+                alert('操作失败: ' + error.message);
+                loadServers();
+            }
+        }
+        
+        function getStatusClass(status) {
+            if (!status || status === 'unknown') return 'unknown';
+            if (status.startsWith('error:')) return 'error';
+            return status;
+        }
+        
+        function getStatusText(status) {
+            if (!status || status === 'unknown') return '未知';
+            if (status === 'connecting') return '连接中';
+            if (status === 'connected') return '已连接';
+            if (status === 'disconnected') return '已断开';
+            if (status.startsWith('error:')) return '错误';
+            return status;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function loadCommands() {
+            const listEl = document.getElementById('commands-list');
+            listEl.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch('/api/commands');
+                const data = await response.json();
+                
+                if (data.commands && data.commands.length > 0) {
+                    listEl.innerHTML = data.commands.map(cmd => {
+                        const sourceClass = cmd.source === 'mcp' ? 'source-mcp' : 'source-local';
+                        const sourceText = cmd.source === 'mcp' ? 'MCP 工具' : '本地命令';
+                        const serviceInfo = cmd.service ? `<div class="command-info-item"><strong>服务:</strong> ${escapeHtml(cmd.service)}</div>` : '';
+                        
+                        const paramsHtml = cmd.parameters && cmd.parameters.length > 0 
+                            ? `<div class="parameters-list">
+                                <strong>参数:</strong>
+                                ${cmd.parameters.map(p => `
+                                    <div class="parameter-item">
+                                        <span class="parameter-name">${escapeHtml(p.name)}</span>
+                                        <span class="parameter-type">${escapeHtml(p.type)}</span>
+                                        ${p.required ? '<span class="parameter-required">必填</span>' : ''}
+                                        ${p.description ? `<div class="parameter-description">${escapeHtml(p.description)}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>`
+                            : '<div class="command-info-item"><em>无参数</em></div>';
+                        
+                        return `
+                            <div class="command-card">
+                                <div class="command-header">
+                                    <div>
+                                        <span class="command-name">${escapeHtml(cmd.name)}</span>
+                                        <span class="command-source ${sourceClass}">${sourceText}</span>
+                                    </div>
+                                </div>
+                                <div class="command-info">
+                                    <div class="command-info-item"><strong>描述:</strong> ${escapeHtml(cmd.description || '无')}</div>
+                                    <div class="command-info-item"><strong>类型:</strong> ${escapeHtml(cmd.type)}</div>
+                                    ${serviceInfo}
+                                    ${paramsHtml}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    listEl.innerHTML = '<div class="loading">没有配置命令</div>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="error-message">加载失败: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+        
+        // 页面加载时自动加载服务列表
+        loadServers();
+        
+        // 每 5 秒自动刷新一次服务列表
+        setInterval(loadServers, 5000);
+    </script>
+</body>
+</html>
+

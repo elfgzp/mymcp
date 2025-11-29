@@ -2,12 +2,12 @@
 
 import asyncio
 import logging
+from typing import Optional
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import uvicorn
 
-from .routes import router
 from ..utils.port_check import check_and_warn_port, find_available_port
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
     """创建 FastAPI 应用"""
+    from .routes import router
+    
     app = FastAPI(title="MyMCP Admin", version="0.1.0")
     
     # 注册路由
@@ -23,43 +25,28 @@ def create_app() -> FastAPI:
     # 静态文件和主页
     @app.get("/", response_class=HTMLResponse)
     async def index():
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>MyMCP Admin</title>
-            <meta charset="utf-8">
-            <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                h1 { color: #333; }
-                .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
-                a { color: #007bff; text-decoration: none; }
-                a:hover { text-decoration: underline; }
-            </style>
-        </head>
-        <body>
-            <h1>MyMCP 管理界面</h1>
-            <div class="section">
-                <h2>API 端点</h2>
-                <ul>
-                    <li><a href="/api/commands">命令管理</a></li>
-                    <li><a href="/api/mcp-servers">MCP 服务管理</a></li>
-                    <li><a href="/api/auth-configs">鉴权配置管理</a></li>
-                    <li><a href="/api/config">配置管理</a></li>
-                </ul>
-            </div>
-            <div class="section">
-                <h2>API 文档</h2>
-                <p><a href="/docs">Swagger UI</a> | <a href="/redoc">ReDoc</a></p>
-            </div>
-        </body>
-        </html>
-        """
+        """返回管理界面 HTML"""
+        from pathlib import Path
+        
+        # 获取模板文件路径
+        template_path = Path(__file__).parent / "templates" / "index.html"
+        
+        if not template_path.exists():
+            return HTMLResponse(
+                content="<h1>错误</h1><p>模板文件不存在: " + str(template_path) + "</p>",
+                status_code=500
+            )
+        
+        # 读取 HTML 文件
+        with open(template_path, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        
+        return HTMLResponse(content=html_content)
     
     return app
 
 
-async def run_admin_server(port: int = 18888) -> None:
+async def run_admin_server(port: int = 18888, config_path: Optional[str] = None, mcp_server_getter=None) -> None:
     """运行管理端服务器"""
     # 检查端口是否可用
     if not check_and_warn_port(port, "管理端"):
@@ -71,8 +58,30 @@ async def run_admin_server(port: int = 18888) -> None:
             logger.error(f"无法找到可用端口: {e}")
             raise
     
+    # 设置管理端上下文
+    if config_path:
+        from .routes import set_admin_context
+        # mcp_server_getter 是一个函数，用于获取当前的 mcp_server 实例
+        set_admin_context(config_path, mcp_server_getter)
+    
     app = create_app()
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
+    # 将 uvicorn 日志重定向到 stderr，避免干扰 MCP 协议的 stdout
+    import sys
+    import logging
+    uvicorn_logger = logging.getLogger("uvicorn")
+    uvicorn_logger.handlers = []
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    uvicorn_logger.addHandler(handler)
+    uvicorn_logger.setLevel(logging.INFO)
+    
+    config = uvicorn.Config(
+        app, 
+        host="0.0.0.0", 
+        port=port, 
+        log_level="info",
+        log_config=None  # 禁用默认日志配置
+    )
     server = uvicorn.Server(config)
     logger.info(f"管理端服务器启动在端口 {port}")
     await server.serve()

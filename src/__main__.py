@@ -3,9 +3,10 @@
 import asyncio
 import argparse
 import sys
+import os
 from pathlib import Path
 
-from .mcp_server import run_server
+from .mcp_server import run_server, McpServer
 
 
 def main():
@@ -35,8 +36,16 @@ def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="日志级别 (默认: INFO)"
     )
+    parser.add_argument(
+        "--open-admin",
+        action="store_true",
+        help="启动后自动打开管理端浏览器 (默认: False)"
+    )
     
     args = parser.parse_args()
+    
+    # 检查环境变量
+    open_admin = args.open_admin or os.getenv("MYMCP_OPEN_ADMIN", "").lower() in ("true", "1", "yes")
     
     # 检查配置文件
     config_path = Path(args.config)
@@ -64,12 +73,59 @@ def main():
             
             # 在后台运行管理端
             import threading
+            import webbrowser
+            import time
+            
+            def start_admin_with_browser():
+                """启动管理端并在启动后打开浏览器"""
+                import socket
+                url = f"http://localhost:{admin_port}"
+                
+                # 等待管理端启动（最多等待10秒）
+                max_wait = 10
+                waited = 0
+                while waited < max_wait:
+                    try:
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock.settimeout(1)
+                        result = sock.connect_ex(('localhost', admin_port))
+                        sock.close()
+                        if result == 0:
+                            # 端口已打开，再等待一小段时间确保服务完全启动
+                            time.sleep(0.5)
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
+                    waited += 0.5
+                
+                # 打开浏览器
+                if open_admin:
+                    try:
+                        webbrowser.open(url)
+                        print(f"✅ 已自动打开管理端: {url}", file=sys.stderr)
+                    except Exception as e:
+                        print(f"⚠️  无法自动打开浏览器: {e}", file=sys.stderr)
+                        print(f"   请手动访问: {url}", file=sys.stderr)
+            
             admin_thread = threading.Thread(
-                target=lambda: asyncio.run(run_admin_server(admin_port)),
+                target=lambda: asyncio.run(run_admin_server(admin_port, str(config_path))),
                 daemon=True
             )
             admin_thread.start()
-            print(f"管理端已启动: http://localhost:{admin_port}")
+            
+            # 如果启用自动打开，启动浏览器线程
+            if open_admin:
+                browser_thread = threading.Thread(
+                    target=start_admin_with_browser,
+                    daemon=True
+                )
+                browser_thread.start()
+            
+            # 输出到 stderr，避免干扰 MCP 协议的 stdout
+            print(f"管理端已启动: http://localhost:{admin_port}", file=sys.stderr)
+            if not open_admin:
+                print(f"提示: 使用 --open-admin 或设置 MYMCP_OPEN_ADMIN=1 可自动打开浏览器", file=sys.stderr)
         except ImportError as e:
             print(f"警告: 无法启动管理端: {e}", file=sys.stderr)
     
