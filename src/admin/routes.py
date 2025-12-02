@@ -147,10 +147,67 @@ async def get_command(name: str):
 
 
 @router.post("/commands")
-async def create_command(command: CommandCreate):
-    """创建命令"""
-    # TODO: 实现
-    return {"message": "命令已创建", "command": command.dict()}
+async def create_command(command: Dict[str, Any]):
+    """创建命令（热更新）"""
+    config_manager, mcp_server = _get_config_manager()
+    config = config_manager.load_config()
+    
+    # 验证命令名称是否已存在
+    command_name = command.get("name")
+    if not command_name:
+        raise HTTPException(status_code=400, detail="命令名称不能为空")
+    
+    if any(cmd.name == command_name for cmd in config.commands):
+        raise HTTPException(status_code=400, detail=f"命令 {command_name} 已存在")
+    
+    # 创建命令配置对象
+    from ..config.models import CommandConfig, HttpCommandConfig, ScriptCommandConfig, ParameterConfig
+    
+    # 构建参数列表
+    parameters = []
+    for param_data in command.get("parameters", []):
+        parameters.append(ParameterConfig(**param_data))
+    
+    # 根据类型创建命令配置
+    command_type = command.get("type")
+    if command_type == "http":
+        http_config = HttpCommandConfig(**command.get("http", {}))
+        new_command = CommandConfig(
+            name=command_name,
+            description=command.get("description", ""),
+            type="http",
+            enabled=command.get("enabled", True),
+            http=http_config,
+            parameters=parameters
+        )
+    elif command_type == "script":
+        script_config = ScriptCommandConfig(**command.get("script", {}))
+        new_command = CommandConfig(
+            name=command_name,
+            description=command.get("description", ""),
+            type="script",
+            enabled=command.get("enabled", True),
+            script=script_config,
+            parameters=parameters
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的命令类型: {command_type}")
+    
+    # 添加到配置
+    config.commands.append(new_command)
+    
+    # 保存配置（会触发热重载）
+    config_manager.save_config(config)
+    
+    return {
+        "message": "命令已创建",
+        "command": {
+            "name": new_command.name,
+            "description": new_command.description,
+            "type": new_command.type,
+            "enabled": new_command.enabled
+        }
+    }
 
 
 @router.put("/commands/{name}")
@@ -162,9 +219,27 @@ async def update_command(name: str, command: Dict[str, Any]):
 
 @router.delete("/commands/{name}")
 async def delete_command(name: str):
-    """删除命令"""
-    # TODO: 实现
-    return {"message": "命令已删除"}
+    """删除命令（热更新）"""
+    config_manager, mcp_server = _get_config_manager()
+    config = config_manager.load_config()
+    
+    # 查找命令
+    command_index = None
+    for i, cmd in enumerate(config.commands):
+        if cmd.name == name:
+            command_index = i
+            break
+    
+    if command_index is None:
+        raise HTTPException(status_code=404, detail=f"命令 {name} 不存在")
+    
+    # 删除命令
+    config.commands.pop(command_index)
+    
+    # 保存配置（会触发热重载）
+    config_manager.save_config(config)
+    
+    return {"message": f"命令 {name} 已删除"}
 
 
 @router.patch("/commands/{name}/toggle")
@@ -232,10 +307,58 @@ async def get_mcp_server(name: str):
 
 
 @router.post("/mcp-servers")
-async def create_mcp_server(server: McpServerCreate):
+async def create_mcp_server(server: Dict[str, Any]):
     """添加 MCP 服务（热更新）"""
-    # TODO: 实现热更新逻辑
-    return {"message": "MCP 服务已添加", "server": server.dict()}
+    config_manager, mcp_server = _get_config_manager()
+    config = config_manager.load_config()
+    
+    # 验证服务名称是否已存在
+    server_name = server.get("name")
+    if not server_name:
+        raise HTTPException(status_code=400, detail="服务名称不能为空")
+    
+    if any(s.name == server_name for s in config.mcp_servers):
+        raise HTTPException(status_code=400, detail=f"MCP 服务 {server_name} 已存在")
+    
+    # 创建服务配置对象
+    from ..config.models import McpServerConfig, McpServerConnectionConfig
+    
+    connection_data = server.get("connection", {})
+    connection_config = McpServerConnectionConfig(**connection_data)
+    
+    new_server = McpServerConfig(
+        name=server_name,
+        description=server.get("description", ""),
+        enabled=server.get("enabled", True),
+        connection=connection_config,
+        prefix=server.get("prefix"),
+        timeout=server.get("timeout", 30),
+        retry_on_failure=server.get("retry_on_failure", True),
+        auto_reconnect=server.get("auto_reconnect", True)
+    )
+    
+    # 添加到配置
+    config.mcp_servers.append(new_server)
+    
+    # 保存配置（会触发热重载）
+    config_manager.save_config(config)
+    
+    # 如果启用且 mcp_server 可用，立即连接
+    if new_server.enabled and mcp_server and hasattr(mcp_server, 'mcp_client_manager'):
+        try:
+            await mcp_server.mcp_client_manager.add_server(new_server)
+        except Exception as e:
+            logger.error(f"连接新添加的 MCP 服务 {server_name} 失败: {e}")
+            # 不抛出异常，因为配置已保存，可以稍后重试
+    
+    return {
+        "message": "MCP 服务已添加",
+        "server": {
+            "name": new_server.name,
+            "description": new_server.description,
+            "enabled": new_server.enabled
+        }
+    }
 
 
 @router.put("/mcp-servers/{name}")
@@ -248,8 +371,33 @@ async def update_mcp_server(name: str, server: Dict[str, Any]):
 @router.delete("/mcp-servers/{name}")
 async def delete_mcp_server(name: str):
     """删除 MCP 服务（热更新）"""
-    # TODO: 实现
-    return {"message": "MCP 服务已删除"}
+    config_manager, mcp_server = _get_config_manager()
+    config = config_manager.load_config()
+    
+    # 查找服务
+    server_index = None
+    for i, s in enumerate(config.mcp_servers):
+        if s.name == name:
+            server_index = i
+            break
+    
+    if server_index is None:
+        raise HTTPException(status_code=404, detail=f"MCP 服务 {name} 不存在")
+    
+    # 如果 mcp_server 可用，先断开连接
+    if mcp_server and hasattr(mcp_server, 'mcp_client_manager'):
+        try:
+            await mcp_server.mcp_client_manager.remove_server(name)
+        except Exception as e:
+            logger.error(f"断开 MCP 服务 {name} 失败: {e}")
+    
+    # 从配置中删除
+    config.mcp_servers.pop(server_index)
+    
+    # 保存配置（会触发热重载）
+    config_manager.save_config(config)
+    
+    return {"message": f"MCP 服务 {name} 已删除"}
 
 
 @router.patch("/mcp-servers/{name}/toggle")

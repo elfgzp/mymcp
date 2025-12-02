@@ -16,18 +16,22 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     """创建 FastAPI 应用"""
     from .routes import router
+    from pathlib import Path
     
     app = FastAPI(title="MyMCP Admin", version="0.1.0")
     
     # 注册路由
     app.include_router(router, prefix="/api")
     
-    # 静态文件和主页
+    # 静态文件服务
+    static_path = Path(__file__).parent / "static"
+    if static_path.exists():
+        app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+    
+    # 主页
     @app.get("/", response_class=HTMLResponse)
     async def index():
         """返回管理界面 HTML"""
-        from pathlib import Path
-        
         # 获取模板文件路径
         template_path = Path(__file__).parent / "templates" / "index.html"
         
