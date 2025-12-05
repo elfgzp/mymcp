@@ -10,6 +10,30 @@
       "env": {
         "INTELLIJ_RUNCONTROL_TOKEN": "your_token_here"
       }
+    },
+    "mymcp-from-git": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server",
+        "--config",
+        "/absolute/path/to/your/config.yaml"
+      ],
+      "env": {
+        "INTELLIJ_RUNCONTROL_TOKEN": "your_token_here"
+      }
+    },
+    "mymcp-from-git-auto-config": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server"
+      ],
+      "env": {
+        "INTELLIJ_RUNCONTROL_TOKEN": "your_token_here"
+      }
     }
   }
 }

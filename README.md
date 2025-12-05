@@ -22,6 +22,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ### 运行
 
+#### 方式 1: 从 PyPI 或本地安装运行
+
 ```bash
 # 使用 uvx 直接运行（无需安装，推荐）
 uvx mymcp --config config.yaml
@@ -37,6 +39,52 @@ MYMCP_OPEN_ADMIN=1 uvx mymcp --config config.yaml --admin
 
 # 自定义管理端端口
 uvx mymcp --config config.yaml --admin --admin-port 19999
+```
+
+#### 方式 2: 从 Git 仓库直接运行（类似 serena）
+
+```bash
+# 从 GitHub 仓库直接运行（自动查找配置文件）
+uvx --from git+https://github.com/your-username/mymcp start-mcp-server
+
+# 指定配置文件路径
+uvx --from git+https://github.com/your-username/mymcp start-mcp-server --config /path/to/config.yaml
+```
+
+在 Cursor 或 Claude Desktop 的 MCP 配置中：
+
+```json
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server",
+        "--config",
+        "/absolute/path/to/your/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+或者使用自动查找配置文件（会在当前目录和 `~/.config/mymcp/` 查找）：
+
+```json
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server"
+      ]
+    }
+  }
+}
 ```
 
 ### 开发模式

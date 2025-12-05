@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 mymcp = "src.__main__:main"
+start-mcp-server = "src.__main__:start_mcp_server"
 
 [build-system]
 requires = ["hatchling"]

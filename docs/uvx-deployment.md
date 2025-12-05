@@ -44,8 +44,11 @@ uvx mymcp --config config.yaml
 # 如果项目已发布到 PyPI
 uvx mymcp --config config.yaml
 
-# 或从 GitHub 仓库运行
-uvx github:your-username/mymcp --config config.yaml
+# 或从 GitHub 仓库运行（使用 start-mcp-server 入口点）
+uvx --from git+https://github.com/your-username/mymcp start-mcp-server --config config.yaml
+
+# 自动查找配置文件（会在当前目录和 ~/.config/mymcp/ 查找）
+uvx --from git+https://github.com/your-username/mymcp start-mcp-server
 ```
 
 ### 方式 3: 从本地路径运行
@@ -185,6 +188,8 @@ source .env && uvx mymcp --config config.yaml
 
 ### Cursor 配置
 
+#### 方式 1: 从 PyPI 或本地安装运行
+
 在 Cursor 的 MCP 配置中添加：
 
 ```json
@@ -202,7 +207,47 @@ source .env && uvx mymcp --config config.yaml
 }
 ```
 
+#### 方式 2: 从 Git 仓库直接运行（推荐，类似 serena）
+
+从 GitHub 仓库直接运行，无需预先安装：
+
+```json
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server",
+        "--config",
+        "/path/to/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+或者使用自动查找配置文件（会在当前目录和 `~/.config/mymcp/` 查找）：
+
+```json
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server"
+      ]
+    }
+  }
+}
+```
+
 ### Claude Desktop 配置
+
+#### 方式 1: 从 PyPI 或本地安装运行
 
 在 Claude Desktop 的配置文件中添加：
 
@@ -213,6 +258,25 @@ source .env && uvx mymcp --config config.yaml
       "command": "uvx",
       "args": [
         "mymcp",
+        "--config",
+        "/path/to/config.yaml"
+      ]
+    }
+  }
+}
+```
+
+#### 方式 2: 从 Git 仓库直接运行
+
+```json
+{
+  "mcpServers": {
+    "mymcp": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/your-username/mymcp",
+        "start-mcp-server",
         "--config",
         "/path/to/config.yaml"
       ]

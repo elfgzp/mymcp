@@ -9,6 +9,22 @@ from pathlib import Path
 from .mcp_server import run_server, McpServer
 
 
+def find_default_config() -> Path:
+    """查找默认配置文件"""
+    # 按优先级查找配置文件
+    config_locations = [
+        Path("config.yaml"),  # 当前目录
+        Path.home() / ".config" / "mymcp" / "config.yaml",  # 用户配置目录
+    ]
+    
+    for config_path in config_locations:
+        if config_path.exists():
+            return config_path
+    
+    # 如果都不存在，返回当前目录的 config.yaml（用于创建）
+    return Path("config.yaml")
+
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="MyMCP - 轻量级 MCP 自定义命令服务")
@@ -134,6 +150,43 @@ def main():
         asyncio.run(run_server(str(config_path)))
     except KeyboardInterrupt:
         print("\n服务器已停止")
+    except Exception as e:
+        print(f"错误: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def start_mcp_server():
+    """启动 MCP 服务器（用于 uvx 从 git 仓库运行）"""
+    parser = argparse.ArgumentParser(description="MyMCP - 启动 MCP 服务器")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="配置文件路径 (可选，默认自动查找)"
+    )
+    
+    args = parser.parse_args()
+    
+    # 确定配置文件路径
+    if args.config:
+        config_path = Path(args.config)
+    else:
+        config_path = find_default_config()
+    
+    # 检查配置文件是否存在
+    if not config_path.exists():
+        print(f"错误: 配置文件不存在: {config_path}", file=sys.stderr)
+        print(f"提示: 请创建配置文件或使用 --config 指定配置文件路径", file=sys.stderr)
+        print(f"示例配置文件位置:", file=sys.stderr)
+        print(f"  - 当前目录: ./config.yaml", file=sys.stderr)
+        print(f"  - 用户配置: ~/.config/mymcp/config.yaml", file=sys.stderr)
+        sys.exit(1)
+    
+    # 运行 MCP 服务器
+    try:
+        asyncio.run(run_server(str(config_path)))
+    except KeyboardInterrupt:
+        print("\n服务器已停止", file=sys.stderr)
     except Exception as e:
         print(f"错误: {e}", file=sys.stderr)
         sys.exit(1)
