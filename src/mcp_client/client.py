@@ -124,9 +124,13 @@ class McpClient:
                         retry_error_msg = str(retry_error)
                         retry_error_type = type(retry_error).__name__
                         logger.debug(f"[{self.name}] 重新连接后 list_tools() 失败: {retry_error_type}: {retry_error_msg}")
-                        # 如果失败且是初始化相关错误，尝试调用 initialize()
-                        if "Invalid request parameters" in retry_error_msg or "request before initialization" in retry_error_msg.lower():
-                            logger.debug(f"[{self.name}] 尝试调用 initialize()...")
+                        # 如果失败且是初始化相关错误或 Connection closed，尝试调用 initialize()
+                        # 注意：重新连接后，如果 list_tools() 仍然失败，可能需要调用 initialize()
+                        if ("Invalid request parameters" in retry_error_msg or 
+                            "request before initialization" in retry_error_msg.lower() or
+                            ("Connection closed" in retry_error_msg and retry_error_type == "McpError")):
+                            logger.debug(f"[{self.name}] 重新连接后仍然失败，尝试调用 initialize()...")
+                            # 继续执行下面的 initialize() 逻辑
                         else:
                             # 其他错误，直接抛出
                             raise
