@@ -103,11 +103,7 @@ class McpClientManager:
             logger.info(f"[{server_config.name}] 连接已建立，等待服务完全启动...")
             
             # 等待一小段时间，确保服务完全启动（某些服务需要时间初始化）
-            # 从 Cursor 的日志看，初始化后需要等待 InitializedNotification 才能调用 list_tools
-            # 对于 Rainbow MCP 服务，可能需要更长的等待时间
-            wait_time = 1.0 if "rainbow" in server_config.name.lower() else 0.5
-            logger.debug(f"[{server_config.name}] 等待 {wait_time} 秒，确保初始化完成...")
-            await asyncio.sleep(wait_time)
+            await asyncio.sleep(0.5)
             
             logger.info(f"[{server_config.name}] 正在获取工具列表...")
 

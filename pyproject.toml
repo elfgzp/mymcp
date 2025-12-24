@@ -5,7 +5,7 @@ description = "轻量级 MCP 自定义命令服务，支持服务聚合和热更
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "mcp>=0.1.0",
+    "mcp>=1.9.0",  # 使用与 Rainbow MCP 服务兼容的版本
     "httpx>=0.25.0",
     "pyyaml>=6.0",
     "pydantic>=2.0",
