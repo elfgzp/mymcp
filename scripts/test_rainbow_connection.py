@@ -60,6 +60,19 @@ async def test_rainbow_connection():
         if hasattr(session, '_server_info'):
             logger.info(f"session._server_info: {session._server_info}")
         
+        # 尝试显式调用 initialize() 方法
+        # 从方法列表看，ClientSession 有一个 initialize() 方法
+        logger.info("尝试显式调用 initialize() 方法...")
+        try:
+            init_result2 = await session.initialize()
+            logger.info(f"✓ initialize() 调用成功，结果: {init_result2}")
+        except Exception as e:
+            logger.warning(f"⚠️ initialize() 调用失败（可能已经初始化）: {e}")
+        
+        # 再次检查 session 状态
+        if hasattr(session, '_initialized'):
+            logger.info(f"调用 initialize() 后，session._initialized: {session._initialized}")
+        
         # 等待服务端发送 InitializedNotification
         # 从错误日志看，需要等待服务端完全初始化
         logger.info("等待服务端发送 InitializedNotification...")
