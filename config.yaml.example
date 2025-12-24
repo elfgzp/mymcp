@@ -106,4 +106,16 @@ global:
   log_file: "mcp.log"
   hot_reload: true
   hot_reload_interval: 2
+  
+  # 工具代理模式配置（优化性能，减少暴露的工具数量）
+  # 启用后，只暴露 2-3 个核心工具（搜索、执行、服务列表）
+  # 大模型可以通过搜索工具查找可用的 MCP 命令，然后通过执行工具调用
+  tool_proxy_mode: false  # 设置为 true 启用工具代理模式
+  
+  # 工具代理详细配置
+  tool_proxy:
+    enable_search: true      # 启用搜索工具
+    enable_execute: true     # 启用执行工具
+    enable_list_services: true  # 启用服务列表工具
+    search_limit: 20         # 搜索结果数量限制
 

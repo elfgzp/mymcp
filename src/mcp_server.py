@@ -14,6 +14,13 @@ from .config.models import Config
 from .command.manager import CommandManager
 from .auth.manager import AuthManager
 from .mcp_client.manager import McpClientManager
+from .tool_index.manager import ToolIndexManager
+from .tool_proxy.tools import (
+    create_proxy_tools,
+    handle_search_tools,
+    handle_execute_tool,
+    handle_list_services
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +39,22 @@ class McpServer:
         # 初始化管理器
         self.auth_manager = AuthManager(self.config)
         self.command_manager = CommandManager(self.config, self.auth_manager)
-        self.mcp_client_manager = McpClientManager(self.config, self.command_manager)
+        
+        # 初始化工具索引管理器（如果启用代理模式）
+        self.tool_index_manager = None
+        if self.config.global_config.tool_proxy_mode:
+            use_whoosh = True  # 可以添加配置选项
+            try:
+                self.tool_index_manager = ToolIndexManager(use_whoosh=use_whoosh)
+            except ImportError:
+                logger.warning("Whoosh 未安装，使用简单搜索引擎")
+                self.tool_index_manager = ToolIndexManager(use_whoosh=False)
+        
+        self.mcp_client_manager = McpClientManager(
+            self.config,
+            self.command_manager,
+            tool_index_manager=self.tool_index_manager
+        )
         
         # 设置配置变更回调
         self.config_manager.on_config_changed = self._on_config_changed
@@ -50,7 +72,22 @@ class McpServer:
         @self.server.list_tools()
         async def list_tools() -> list[Tool]:
             """列出所有可用工具"""
-            return self.command_manager.get_all_tools()
+            # 如果启用代理模式，只返回代理工具
+            if self.config.global_config.tool_proxy_mode and self.tool_index_manager:
+                proxy_tools = create_proxy_tools(
+                    self.tool_index_manager,
+                    self.mcp_client_manager,
+                    self.config
+                )
+                # 仍然包含本地命令
+                local_tools = []
+                for cmd in self.config.commands:
+                    if cmd.enabled:
+                        local_tools.append(self.command_manager._command_to_tool(cmd))
+                return local_tools + proxy_tools
+            else:
+                # 传统模式：返回所有工具
+                return self.command_manager.get_all_tools()
 
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
@@ -60,31 +97,68 @@ class McpServer:
                 if name in [cmd.name for cmd in self.config.commands]:
                     return await self.command_manager.call_tool(name, arguments)
                 
-                # 检查是否是 MCP 服务工具
-                # 查找工具对应的服务
-                for service_name, client in self.mcp_client_manager.clients.items():
-                    tools = await client.list_tools()
-                    for tool in tools:
-                        tool_name = tool.name
-                        # 检查是否有前缀
-                        for server_config in self.config.mcp_servers:
-                            if server_config.name == service_name:
-                                if server_config.prefix:
-                                    tool_name = f"{server_config.prefix}_{tool.name}"
-                                break
-                        
-                        if tool_name == name:
-                            result = await self.mcp_client_manager.call_tool(
-                                service_name, tool.name, arguments
-                            )
-                            # 转换结果格式
-                            contents = []
-                            for content in result.content:
-                                if content.type == "text":
-                                    contents.append(TextContent(type="text", text=content.text))
-                                else:
-                                    contents.append(TextContent(type="text", text=str(content)))
-                            return contents
+                # 如果启用代理模式，检查是否是代理工具
+                if self.config.global_config.tool_proxy_mode and self.tool_index_manager:
+                    if name == "mcp_search_tools":
+                        query = arguments.get("query", "")
+                        service_name = arguments.get("service_name")
+                        limit = arguments.get("limit", self.config.global_config.tool_proxy.search_limit)
+                        result = await handle_search_tools(
+                            self.tool_index_manager,
+                            query,
+                            service_name,
+                            limit
+                        )
+                        import json
+                        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
+                    
+                    elif name == "mcp_execute_tool":
+                        tool_name = arguments.get("tool_name")
+                        tool_arguments = arguments.get("arguments", {})
+                        result = await handle_execute_tool(
+                            self.tool_index_manager,
+                            self.mcp_client_manager,
+                            self.config,
+                            tool_name,
+                            tool_arguments
+                        )
+                        import json
+                        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
+                    
+                    elif name == "mcp_list_services":
+                        result = await handle_list_services(
+                            self.tool_index_manager,
+                            self.mcp_client_manager
+                        )
+                        import json
+                        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
+                
+                # 传统模式：检查是否是 MCP 服务工具
+                if not self.config.global_config.tool_proxy_mode:
+                    # 查找工具对应的服务
+                    for service_name, client in self.mcp_client_manager.clients.items():
+                        tools = await client.list_tools()
+                        for tool in tools:
+                            tool_name = tool.name
+                            # 检查是否有前缀
+                            for server_config in self.config.mcp_servers:
+                                if server_config.name == service_name:
+                                    if server_config.prefix:
+                                        tool_name = f"{server_config.prefix}_{tool.name}"
+                                    break
+                            
+                            if tool_name == name:
+                                result = await self.mcp_client_manager.call_tool(
+                                    service_name, tool.name, arguments
+                                )
+                                # 转换结果格式
+                                contents = []
+                                for content in result.content:
+                                    if content.type == "text":
+                                        contents.append(TextContent(type="text", text=content.text))
+                                    else:
+                                        contents.append(TextContent(type="text", text=str(content)))
+                                return contents
                 
                 raise ValueError(f"工具不存在: {name}")
             

@@ -114,6 +114,14 @@ class McpServerConfig(BaseModel):
     auto_reconnect: bool = True
 
 
+class ToolProxyConfig(BaseModel):
+    """工具代理配置"""
+    enable_search: bool = True
+    enable_execute: bool = True
+    enable_list_services: bool = True
+    search_limit: int = 20
+
+
 class GlobalConfig(BaseModel):
     """全局配置"""
     default_timeout: int = 30
@@ -123,6 +131,8 @@ class GlobalConfig(BaseModel):
     log_file: Optional[str] = None
     hot_reload: bool = True
     hot_reload_interval: int = 2
+    tool_proxy_mode: bool = False  # 启用工具代理模式
+    tool_proxy: ToolProxyConfig = Field(default_factory=ToolProxyConfig)
 
 
 class Config(BaseModel):

@@ -8,6 +8,7 @@ from mcp.types import Tool
 from ..config.models import Config, McpServerConfig
 from .client import McpClient
 from .connection import McpConnection
+from ..tool_index.manager import ToolIndexManager
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +16,10 @@ logger = logging.getLogger(__name__)
 class McpClientManager:
     """MCP 客户端管理器"""
 
-    def __init__(self, config: Config, command_manager):
+    def __init__(self, config: Config, command_manager, tool_index_manager: ToolIndexManager = None):
         self.config = config
         self.command_manager = command_manager
+        self.tool_index_manager = tool_index_manager
         self.clients: Dict[str, McpClient] = {}
         self._reconnect_tasks: Dict[str, asyncio.Task] = {}
         self._init_tasks: Dict[str, asyncio.Task] = {}  # 初始化任务
@@ -81,6 +83,16 @@ class McpClientManager:
             for tool in tools:
                 tool_name = f"{server_config.prefix}_{tool.name}" if server_config.prefix else tool.name
                 self.command_manager.register_mcp_tool(server_config.name, tool, server_config.prefix)
+            
+            # 添加到工具索引（如果启用）
+            if self.tool_index_manager:
+                for tool in tools:
+                    self.tool_index_manager.add_tool(
+                        tool=tool,
+                        service_name=server_config.name,
+                        service_description=server_config.description,
+                        prefix=server_config.prefix
+                    )
 
             self.clients[server_config.name] = client
             self._connection_status[server_config.name] = "connected"
@@ -127,6 +139,11 @@ class McpClientManager:
 
         # 注销工具
         self.command_manager.unregister_mcp_tools(name)
+        
+        # 从工具索引移除
+        if self.tool_index_manager:
+            self.tool_index_manager.remove_service_tools(name)
+        
         self._connection_status[name] = "disconnected"
         logger.info(f"MCP 服务 {name} 已移除")
 
@@ -175,6 +192,20 @@ class McpClientManager:
                             for tool in tools:
                                 tool_name = f"{server_config.prefix}_{tool.name}" if server_config.prefix else tool.name
                                 self.command_manager.register_mcp_tool(name, tool, server_config.prefix)
+                            
+                            # 更新工具索引
+                            if self.tool_index_manager:
+                                # 先移除旧索引
+                                self.tool_index_manager.remove_service_tools(name)
+                                # 重新添加
+                                for tool in tools:
+                                    self.tool_index_manager.add_tool(
+                                        tool=tool,
+                                        service_name=name,
+                                        service_description=server_config.description,
+                                        prefix=server_config.prefix
+                                    )
+                            
                             logger.info(f"MCP 服务 {name} 重连成功")
                         except Exception as e:
                             logger.error(f"MCP 服务 {name} 重连失败: {e}")
