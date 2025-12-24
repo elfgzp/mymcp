@@ -116,12 +116,15 @@ class McpClientManager:
                     last_error = e
                     error_msg = str(e)
                     if attempt < max_retries - 1:
-                        logger.warning(f"[{server_config.name}] 获取工具列表失败 (尝试 {attempt + 1}/{max_retries}): {error_msg}")
-                        logger.info(f"[{server_config.name}] 等待 {retry_delay} 秒后重试...")
+                        # 重试时只记录简要警告，避免日志过多
+                        logger.warning(f"[{server_config.name}] 获取工具列表失败 (尝试 {attempt + 1}/{max_retries}): {error_msg[:100]}")
+                        logger.debug(f"[{server_config.name}] 等待 {retry_delay} 秒后重试...")
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2  # 指数退避
                     else:
-                        logger.error(f"[{server_config.name}] 获取工具列表失败，已达到最大重试次数")
+                        # 最后一次失败时记录完整错误信息
+                        logger.error(f"[{server_config.name}] 获取工具列表失败，已达到最大重试次数: {error_msg}")
+                        logger.debug(f"[{server_config.name}] 错误详情: {e}", exc_info=True)
                         raise
             
             if tools is None:

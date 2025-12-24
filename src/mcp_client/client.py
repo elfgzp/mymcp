@@ -77,8 +77,9 @@ class McpClient:
                                 logger.debug(f"[{self.name}] 尝试传递 None 作为关键字参数...")
                                 result = await self.session.list_tools(cursor=None, params=None)
                             except Exception as e3:
-                                # 所有尝试都失败，抛出最后一个错误
-                                logger.error(f"[{self.name}] 所有参数传递方式都失败，使用最后一个错误")
+                                # 所有尝试都失败，只记录一次错误（避免重复日志）
+                                # 详细错误信息会在上层重试机制中记录
+                                logger.debug(f"[{self.name}] 所有参数传递方式都失败: {str(e3)}")
                                 raise e3
             else:
                 # 有必需参数，需要传递
@@ -91,25 +92,13 @@ class McpClient:
         except Exception as e:
             error_type = type(e).__name__
             error_msg = str(e)
-            logger.error(f"[{self.name}] ✗ 获取工具列表失败: {error_type}: {error_msg}")
-            logger.error(f"[{self.name}] 错误详情: {e}", exc_info=True)
+            # 只在 DEBUG 级别记录详细错误，避免日志过多
+            # 上层重试机制会记录最终的错误信息
+            logger.debug(f"[{self.name}] 获取工具列表失败: {error_type}: {error_msg}")
             
-            # 如果是 "Invalid request parameters" 错误，尝试其他方法
+            # 如果是 "Invalid request parameters" 错误，记录一次警告即可
             if "Invalid request parameters" in error_msg or "invalid" in error_msg.lower():
-                logger.warning(f"[{self.name}] 检测到 'Invalid request parameters' 错误，可能是 MCP 协议版本不兼容")
-                try:
-                    # 尝试获取服务器信息
-                    logger.debug(f"[{self.name}] 尝试获取服务器 capabilities...")
-                    if hasattr(self.session, 'initialize_result'):
-                        init_result = self.session.initialize_result
-                        logger.debug(f"[{self.name}] 服务器 capabilities: {init_result.capabilities if hasattr(init_result, 'capabilities') else 'N/A'}")
-                    
-                    # 尝试直接调用底层方法（如果可用）
-                    if hasattr(self.session, '_send_request'):
-                        logger.debug(f"[{self.name}] 尝试使用底层方法...")
-                        # 这里可以尝试其他调用方式
-                except Exception as cap_error:
-                    logger.debug(f"[{self.name}] 获取 capabilities 失败: {cap_error}")
+                logger.debug(f"[{self.name}] 检测到 'Invalid request parameters' 错误，可能是 MCP 协议版本不兼容")
             
             raise
 
