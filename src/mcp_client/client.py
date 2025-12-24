@@ -81,9 +81,18 @@ class McpClient:
             error_type = type(e).__name__
             error_msg = str(e)
             
-            # 如果是 "Invalid request parameters" 或类似的初始化错误，尝试调用 initialize() 后重试
-            if "Invalid request parameters" in error_msg or "request before initialization" in error_msg.lower():
+            # 如果是 "Invalid request parameters" 或 "Connection closed"（可能是未初始化导致的），尝试调用 initialize() 后重试
+            # 注意：某些服务（如 tapd）在未完全初始化时，list_tools() 会返回 "Connection closed"
+            # 但调用 initialize() 后可以正常工作
+            should_try_initialize = (
+                "Invalid request parameters" in error_msg or 
+                "request before initialization" in error_msg.lower() or
+                ("Connection closed" in error_msg and "McpError" in error_type)  # McpError: Connection closed 可能是未初始化
+            )
+            
+            if should_try_initialize:
                 logger.debug(f"[{self.name}] list_tools() 失败，可能是未完全初始化，尝试调用 initialize()...")
+                logger.debug(f"[{self.name}] 错误类型: {error_type}, 错误消息: {error_msg}")
                 try:
                     init_result = await self.session.initialize()
                     logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
@@ -108,7 +117,7 @@ class McpClient:
                         # 继续抛出原始错误
             
             # 如果是 ClosedResourceError，说明连接已关闭，清除缓存并标记连接失败
-            if "ClosedResourceError" in error_type or "closed" in error_msg.lower():
+            if "ClosedResourceError" in error_type or ("closed" in error_msg.lower() and not should_try_initialize):
                 logger.error(f"[{self.name}] 获取工具列表失败：连接已关闭 ({error_type}: {error_msg})")
                 self._tools_cache = None
                 # 标记连接为失败状态
