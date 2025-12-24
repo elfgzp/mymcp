@@ -81,6 +81,32 @@ class McpClient:
             error_type = type(e).__name__
             error_msg = str(e)
             
+            # 如果是 "Invalid request parameters" 或类似的初始化错误，尝试调用 initialize() 后重试
+            if "Invalid request parameters" in error_msg or "request before initialization" in error_msg.lower():
+                logger.debug(f"[{self.name}] list_tools() 失败，可能是未完全初始化，尝试调用 initialize()...")
+                try:
+                    init_result = await self.session.initialize()
+                    logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
+                    if hasattr(init_result, 'serverInfo'):
+                        logger.debug(f"[{self.name}] 服务器信息: {init_result.serverInfo}")
+                    
+                    # 重试 list_tools()
+                    logger.debug(f"[{self.name}] 重试 list_tools()...")
+                    result = await self.session.list_tools()
+                    self._tools_cache = result.tools
+                    logger.info(f"[{self.name}] ✓ 获取到 {len(self._tools_cache)} 个工具（调用 initialize() 后）")
+                    return self._tools_cache
+                except Exception as init_error:
+                    init_error_msg = str(init_error)
+                    init_error_type = type(init_error).__name__
+                    # 如果 initialize() 失败且是连接关闭错误，说明服务不支持重复初始化
+                    if "closed" in init_error_msg.lower() or "Connection closed" in init_error_msg or "ClosedResourceError" in init_error_type:
+                        logger.warning(f"[{self.name}] initialize() 调用失败：连接已关闭（服务不支持重复初始化）: {init_error}")
+                        # 继续抛出原始错误
+                    else:
+                        logger.warning(f"[{self.name}] initialize() 调用失败: {init_error_type}: {init_error_msg}")
+                        # 继续抛出原始错误
+            
             # 如果是 ClosedResourceError，说明连接已关闭，清除缓存并标记连接失败
             if "ClosedResourceError" in error_type or "closed" in error_msg.lower():
                 logger.error(f"[{self.name}] 获取工具列表失败：连接已关闭 ({error_type}: {error_msg})")

@@ -119,33 +119,9 @@ class McpConnection:
                 # 但某些服务（如 rainbow）可能需要显式调用 initialize() 才能完全初始化
                 # 而某些服务（如 tapd）不支持重复初始化，如果已初始化，再次调用会导致连接关闭
                 # 
-                # 策略：总是尝试调用 initialize()，但如果失败且错误是 "Connection closed"，
-                # 说明服务不支持重复初始化但已经初始化，继续使用 session
-                logger.debug(f"[{self.name}] 尝试调用 initialize() 方法确保初始化完成...")
-                try:
-                    init_result2 = await asyncio.wait_for(
-                        self.session.initialize(),
-                        timeout=10
-                    )
-                    logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
-                    if hasattr(init_result2, 'serverInfo'):
-                        logger.debug(f"[{self.name}] 服务器信息: {init_result2.serverInfo}")
-                except Exception as e:
-                    error_msg = str(e)
-                    error_type = type(e).__name__
-                    
-                    # 如果错误信息包含 "closed" 或 "Connection closed"，说明连接已关闭
-                    # 这通常意味着服务不支持重复初始化，但 __aenter__() 已经完成了初始化
-                    # 对于这种情况，不抛出异常，继续使用 session（如果后续调用失败再处理）
-                    if "closed" in error_msg.lower() or "Connection closed" in error_msg or "ClosedResourceError" in error_type:
-                        logger.debug(f"[{self.name}] initialize() 调用失败：连接已关闭（服务可能不支持重复初始化，但已通过 __aenter__() 初始化）: {e}")
-                        # 不抛出异常，因为 __aenter__() 可能已经完成了初始化
-                        # 尝试继续使用 session，如果后续调用失败再处理
-                    else:
-                        # 其他错误（如超时、网络错误等），记录警告但不中断连接
-                        # 因为某些服务可能已经通过 __aenter__() 初始化，即使 initialize() 失败也能正常工作
-                        logger.warning(f"[{self.name}] initialize() 调用失败（可能已通过 __aenter__() 初始化）: {error_type}: {error_msg}")
-                        # 不抛出异常，让后续的 list_tools() 等操作来验证连接是否真的可用
+                # 策略：不在连接建立时立即调用 initialize()，而是延迟到真正需要时（如 list_tools() 失败时）再调用
+                # 这样可以避免不必要的连接关闭，同时支持需要显式初始化的服务
+                logger.debug(f"[{self.name}] 会话已通过 __aenter__() 初始化，延迟 initialize() 调用到真正需要时")
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
                 # 清理已创建的流
