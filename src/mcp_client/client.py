@@ -35,6 +35,23 @@ class McpClient:
 
         if not self.session:
             await self.connect()
+        
+        # 检查连接状态
+        if not self.is_connected:
+            logger.warning(f"[{self.name}] 连接未建立，尝试重新连接...")
+            await self.connect()
+        
+        # 检查 session 是否有效
+        if not self.session:
+            raise ConnectionError(f"[{self.name}] 会话未初始化，无法获取工具列表")
+        
+        # 检查连接流是否已关闭
+        if hasattr(self.connection, '_write_stream') and self.connection._write_stream:
+            if hasattr(self.connection._write_stream, 'closed') and self.connection._write_stream.closed:
+                logger.warning(f"[{self.name}] 写入流已关闭，尝试重新连接...")
+                await self.connect()
+                if not self.session:
+                    raise ConnectionError(f"[{self.name}] 重新连接失败，无法获取工具列表")
 
         try:
             # 尝试获取工具列表
@@ -63,6 +80,20 @@ class McpClient:
         except Exception as e:
             error_type = type(e).__name__
             error_msg = str(e)
+            
+            # 如果是 ClosedResourceError，说明连接已关闭，清除缓存并标记连接失败
+            if "ClosedResourceError" in error_type or "closed" in error_msg.lower():
+                logger.error(f"[{self.name}] 获取工具列表失败：连接已关闭 ({error_type}: {error_msg})")
+                self._tools_cache = None
+                # 标记连接为失败状态
+                self.connection._connected = False
+                # 尝试清理连接
+                try:
+                    await self.disconnect()
+                except Exception as cleanup_error:
+                    logger.debug(f"[{self.name}] 清理连接时出错: {cleanup_error}")
+                raise ConnectionError(f"[{self.name}] 连接已关闭，无法获取工具列表: {error_msg}")
+            
             # 只在 DEBUG 级别记录详细错误，避免日志过多
             # 上层重试机制会记录最终的错误信息
             logger.debug(f"[{self.name}] 获取工具列表失败: {error_type}: {error_msg}")

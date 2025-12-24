@@ -105,6 +105,16 @@ class McpConnection:
                 if init_result:
                     logger.debug(f"[{self.name}] 初始化结果: {type(init_result)}")
                 
+                # 检查连接状态，确保流仍然有效
+                if self._write_stream is None or self._read_stream is None:
+                    raise ConnectionError(f"[{self.name}] 连接流已关闭，无法初始化")
+                
+                # 检查流是否已关闭
+                if hasattr(self._write_stream, 'closed') and self._write_stream.closed:
+                    raise ConnectionError(f"[{self.name}] 写入流已关闭，无法初始化")
+                if hasattr(self._read_stream, 'closed') and self._read_stream.closed:
+                    raise ConnectionError(f"[{self.name}] 读取流已关闭，无法初始化")
+                
                 # 显式调用 initialize() 方法，确保初始化完成
                 # 从测试脚本发现，ClientSession.__aenter__() 可能只发送了 InitializeRequest
                 # 但没有等待 InitializedNotification，需要显式调用 initialize() 来确保初始化完成
@@ -115,7 +125,18 @@ class McpConnection:
                     if hasattr(init_result2, 'serverInfo'):
                         logger.debug(f"[{self.name}] 服务器信息: {init_result2.serverInfo}")
                 except Exception as e:
-                    # 如果 initialize() 失败（可能已经初始化），记录警告但继续
+                    error_msg = str(e)
+                    # 如果错误信息包含 "closed" 或 "Connection closed"，说明连接已关闭
+                    if "closed" in error_msg.lower() or "Connection closed" in error_msg:
+                        logger.error(f"[{self.name}] initialize() 调用失败：连接已关闭: {e}")
+                        # 清理连接
+                        self._connected = False
+                        try:
+                            await stdio_transport_context.__aexit__(None, None, None)
+                        except Exception as cleanup_error:
+                            logger.warning(f"[{self.name}] 清理 stdio 传输时出错: {cleanup_error}")
+                        raise ConnectionError(f"[{self.name}] 连接在初始化过程中关闭: {e}")
+                    # 其他错误（如已经初始化）可以忽略
                     logger.debug(f"[{self.name}] initialize() 调用失败（可能已经初始化）: {e}")
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
