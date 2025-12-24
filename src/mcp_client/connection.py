@@ -44,7 +44,16 @@ class McpConnection:
             # 准备环境变量（合并系统环境变量和自定义环境变量）
             process_env = None
             if self.env:
-                process_env = {**os.environ, **self.env}
+                # 过滤掉空值和未解析的环境变量占位符
+                filtered_env = {
+                    k: v for k, v in self.env.items()
+                    if v and not (isinstance(v, str) and v.startswith("${") and v.endswith("}"))
+                }
+                if filtered_env:
+                    process_env = {**os.environ, **filtered_env}
+                else:
+                    # 如果没有有效的环境变量，使用系统环境变量
+                    process_env = os.environ
             
             server_params = StdioServerParameters(
                 command=self.command,

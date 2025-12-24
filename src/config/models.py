@@ -176,7 +176,13 @@ class Config(BaseModel):
         for server in self.mcp_servers:
             if server.env:
                 for key, value in server.env.items():
-                    server.env[key] = self._resolve_env(value)
+                    # 如果值是空字符串或未解析的环境变量，跳过（允许为空）
+                    resolved = self._resolve_env(value)
+                    if resolved and resolved != value:  # 只有成功解析才更新
+                        server.env[key] = resolved
+                    elif resolved:  # 如果解析后还是原值（可能是字面量），保留
+                        server.env[key] = resolved
+                    # 如果解析失败（环境变量不存在），保留原值或设为空字符串
 
     @staticmethod
     def _resolve_env(value: str) -> str:
