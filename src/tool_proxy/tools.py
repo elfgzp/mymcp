@@ -175,21 +175,54 @@ async def handle_execute_tool(
             result_text = "\n".join(contents) if len(contents) > 1 else (contents[0] if contents else "")
         else:
             # 调用 MCP 服务工具
+            logger.debug(f"调用 MCP 工具: service={tool_index.service_name}, tool={tool_index.name}, args={arguments}")
             result = await mcp_client_manager.call_tool(
                 tool_index.service_name,
                 tool_index.name,  # 使用原始名称
                 arguments
             )
             
+            logger.debug(f"MCP 工具返回结果类型: {type(result)}, 是否有 content 属性: {hasattr(result, 'content')}")
+            
             # 转换结果格式
             contents = []
-            for content in result.content:
-                if content.type == "text":
-                    contents.append(content.text)
-                else:
-                    contents.append(str(content))
+            if hasattr(result, 'content') and result.content:
+                logger.debug(f"结果包含 {len(result.content)} 个内容项")
+                for idx, content in enumerate(result.content):
+                    logger.debug(f"内容项 {idx}: type={content.type}, text长度={len(content.text) if hasattr(content, 'text') and content.text else 0}")
+                    if content.type == "text":
+                        # 处理空文本的情况
+                        text = content.text if content.text else ""
+                        if text:
+                            contents.append(text)
+                    else:
+                        content_str = str(content)
+                        if content_str:
+                            contents.append(content_str)
+            else:
+                logger.warning(f"结果没有 content 属性或 content 为空: result={result}")
             
-            result_text = "\n".join(contents) if len(contents) > 1 else (contents[0] if contents else "")
+            # 处理结果文本
+            if contents:
+                result_text = "\n".join(contents) if len(contents) > 1 else contents[0]
+                logger.debug(f"提取的结果文本长度: {len(result_text)}")
+            else:
+                # 如果没有内容，尝试将整个 result 对象转换为字符串
+                logger.warning(f"结果内容为空，尝试转换整个 result 对象")
+                if hasattr(result, '__dict__'):
+                    import json
+                    try:
+                        result_text = json.dumps(result.__dict__, ensure_ascii=False, default=str)
+                    except Exception as e:
+                        logger.warning(f"无法将 result.__dict__ 转换为 JSON: {e}")
+                        result_text = str(result)
+                else:
+                    result_text = str(result) if result else ""
+                
+                # 如果仍然是空字符串，记录警告并使用默认值
+                if not result_text:
+                    logger.warning(f"工具 {tool_name} 返回了空结果，使用默认空 JSON 对象")
+                    result_text = "{}"  # 返回空 JSON 对象而不是空字符串
         
         return {
             "success": True,
@@ -200,11 +233,28 @@ async def handle_execute_tool(
         }
     
     except Exception as e:
-        logger.error(f"执行工具 {tool_name} 失败: {e}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"执行工具 {tool_name} 失败: {error_msg}", exc_info=True)
+        
+        # 尝试从异常中提取更多信息
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": error_msg
+        }
+        
+        # 如果异常有更多属性，添加到错误详情中
+        if hasattr(e, '__dict__'):
+            for key, value in e.__dict__.items():
+                if key not in ['args'] and not key.startswith('_'):
+                    error_details[key] = str(value)
+        
         return {
             "success": False,
-            "error": str(e),
-            "result": None
+            "error": error_msg,
+            "error_details": error_details,
+            "result": None,
+            "tool_name": tool_index.display_name if tool_index else tool_name,
+            "service": tool_index.service_name if tool_index else "unknown"
         }
 
 
