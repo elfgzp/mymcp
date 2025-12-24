@@ -2,7 +2,8 @@
 
 import asyncio
 import logging
-from typing import Optional
+import os
+from typing import Optional, Dict
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -12,10 +13,11 @@ logger = logging.getLogger(__name__)
 class McpConnection:
     """MCP 连接"""
 
-    def __init__(self, name: str, command: str, args: list, timeout: int = 30):
+    def __init__(self, name: str, command: str, args: list, timeout: int = 30, env: Optional[Dict[str, str]] = None):
         self.name = name
         self.command = command
         self.args = args
+        self.env = env  # 环境变量
         # 对于启动较慢的服务（如 serena、工蜂），增加超时时间
         # 如果超时时间小于 60 秒，默认设置为 60 秒
         # 对于使用 uvx 和 git+ 的服务，可能需要更长时间
@@ -39,9 +41,15 @@ class McpConnection:
             return self.session
 
         try:
+            # 准备环境变量（合并系统环境变量和自定义环境变量）
+            process_env = None
+            if self.env:
+                process_env = {**os.environ, **self.env}
+            
             server_params = StdioServerParameters(
                 command=self.command,
-                args=self.args
+                args=self.args,
+                env=process_env
             )
 
             # stdio_client 返回异步上下文管理器，需要使用 async with

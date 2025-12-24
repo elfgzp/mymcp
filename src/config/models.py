@@ -112,6 +112,7 @@ class McpServerConfig(BaseModel):
     timeout: int = 30
     retry_on_failure: bool = True
     auto_reconnect: bool = True
+    env: Optional[Dict[str, str]] = None  # 环境变量
 
 
 class ToolProxyConfig(BaseModel):

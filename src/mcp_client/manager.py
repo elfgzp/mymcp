@@ -70,7 +70,8 @@ class McpClientManager:
                 name=server_config.name,
                 command=server_config.connection.command or "uvx",
                 args=server_config.connection.args or [],
-                timeout=server_config.timeout
+                timeout=server_config.timeout,
+                env=server_config.env
             )
 
             client = McpClient(server_config.name, connection)
