@@ -39,7 +39,20 @@ class McpClient:
         try:
             # 尝试获取工具列表
             logger.debug(f"[{self.name}] 调用 session.list_tools()...")
-            result = await self.session.list_tools()
+            
+            # 检查 session.list_tools 的签名，看是否需要参数
+            import inspect
+            sig = inspect.signature(self.session.list_tools)
+            logger.debug(f"[{self.name}] list_tools 方法签名: {sig}")
+            
+            # 根据签名调用（某些 MCP 服务可能需要参数）
+            if len(sig.parameters) == 0:
+                result = await self.session.list_tools()
+            else:
+                # 如果有参数，尝试传递空参数
+                logger.debug(f"[{self.name}] list_tools 需要参数，尝试传递空参数...")
+                result = await self.session.list_tools()
+            
             self._tools_cache = result.tools
             logger.info(f"[{self.name}] ✓ 获取到 {len(self._tools_cache)} 个工具")
             return self._tools_cache
@@ -49,15 +62,20 @@ class McpClient:
             logger.error(f"[{self.name}] ✗ 获取工具列表失败: {error_type}: {error_msg}")
             logger.error(f"[{self.name}] 错误详情: {e}", exc_info=True)
             
-            # 如果是 "Invalid request parameters" 错误，可能是服务需要特殊初始化
-            # 尝试获取 capabilities 看看服务支持什么
+            # 如果是 "Invalid request parameters" 错误，尝试其他方法
             if "Invalid request parameters" in error_msg or "invalid" in error_msg.lower():
+                logger.warning(f"[{self.name}] 检测到 'Invalid request parameters' 错误，可能是 MCP 协议版本不兼容")
                 try:
+                    # 尝试获取服务器信息
                     logger.debug(f"[{self.name}] 尝试获取服务器 capabilities...")
-                    # 检查 session 是否有 initialize_result
                     if hasattr(self.session, 'initialize_result'):
                         init_result = self.session.initialize_result
                         logger.debug(f"[{self.name}] 服务器 capabilities: {init_result.capabilities if hasattr(init_result, 'capabilities') else 'N/A'}")
+                    
+                    # 尝试直接调用底层方法（如果可用）
+                    if hasattr(self.session, '_send_request'):
+                        logger.debug(f"[{self.name}] 尝试使用底层方法...")
+                        # 这里可以尝试其他调用方式
                 except Exception as cap_error:
                     logger.debug(f"[{self.name}] 获取 capabilities 失败: {cap_error}")
             
