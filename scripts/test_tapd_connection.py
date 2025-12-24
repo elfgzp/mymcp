@@ -98,14 +98,14 @@ async def test_tapd_connection():
             if hasattr(session, '_server_info'):
                 print(f"    session._server_info: {session._server_info}")
             
-            # 测试是否可以直接调用 list_tools
+            # 测试是否可以直接调用 list_tools（不调用 initialize()）
             print("\n6. 测试直接调用 list_tools()（不调用 initialize()）...")
             try:
                 result = await asyncio.wait_for(
                     session.list_tools(),
                     timeout=10
                 )
-                print(f"  ✓ list_tools() 成功！")
+                print(f"  ✓ list_tools() 成功（无需 initialize()）！")
                 print(f"    工具数量: {len(result.tools)}")
                 if result.tools:
                     print(f"    前 3 个工具:")
@@ -113,7 +113,8 @@ async def test_tapd_connection():
                         print(f"      - {tool.name}: {tool.description[:50] if tool.description else 'N/A'}...")
                 return True
             except Exception as e:
-                print(f"  ✗ list_tools() 失败: {type(e).__name__}: {e}")
+                print(f"  ✗ list_tools() 失败（未调用 initialize()）: {type(e).__name__}: {e}")
+                error_msg = str(e)
                 
                 # 如果失败，尝试调用 initialize()
                 print("\n7. 测试调用 initialize() 后再次调用 list_tools()...")
@@ -131,11 +132,24 @@ async def test_tapd_connection():
                         session.list_tools(),
                         timeout=10
                     )
-                    print(f"  ✓ list_tools() 成功！")
+                    print(f"  ✓ list_tools() 成功（调用 initialize() 后）！")
                     print(f"    工具数量: {len(result.tools)}")
+                    if result.tools:
+                        print(f"    前 3 个工具:")
+                        for tool in result.tools[:3]:
+                            print(f"      - {tool.name}: {tool.description[:50] if tool.description else 'N/A'}...")
                     return True
                 except Exception as e2:
-                    print(f"  ✗ initialize() 或 list_tools() 失败: {type(e2).__name__}: {e2}")
+                    error_msg2 = str(e2)
+                    error_type2 = type(e2).__name__
+                    print(f"  ✗ initialize() 或 list_tools() 失败: {error_type2}: {error_msg2}")
+                    
+                    # 检查是否是连接关闭错误
+                    if "closed" in error_msg2.lower() or "Connection closed" in error_msg2 or "ClosedResourceError" in error_type2:
+                        print(f"  ⚠ 注意: 连接已关闭，这可能意味着服务不支持重复初始化")
+                        print(f"     但 __aenter__() 可能已经完成了初始化")
+                        print(f"     这种情况下，应该直接使用 __aenter__() 的结果，不调用 initialize()")
+                        # 返回 False，因为测试失败
                     import traceback
                     traceback.print_exc()
                     return False
@@ -166,10 +180,10 @@ async def test_tapd_connection():
         return False
 
 
-async def test_tapd_without_initialize():
-    """测试不调用 initialize() 的情况"""
+async def test_tapd_with_initialize_first():
+    """测试先调用 initialize() 再使用的情况"""
     print("\n" + "=" * 60)
-    print("测试 2: 不调用 initialize()，直接使用 __aenter__ 的结果")
+    print("测试 2: 先调用 initialize()，再使用 session")
     print("=" * 60)
     
     process_env = {**os.environ}
@@ -195,60 +209,102 @@ async def test_tapd_without_initialize():
             stdio_transport_context.__aenter__(),
             timeout=60
         )
+        print("  ✓ stdio 传输已建立")
         
-        async with ClientSession(read_stream, write_stream) as session:
-            print("  ✓ 使用 async with ClientSession 成功")
-            
-            # 直接调用 list_tools
-            try:
-                result = await asyncio.wait_for(
-                    session.list_tools(),
-                    timeout=10
-                )
-                print(f"  ✓ list_tools() 成功！")
-                print(f"    工具数量: {len(result.tools)}")
-                return True
-            except Exception as e:
-                print(f"  ✗ list_tools() 失败: {type(e).__name__}: {e}")
-                import traceback
-                traceback.print_exc()
+        session = ClientSession(read_stream, write_stream)
+        print("  ✓ ClientSession 创建成功")
+        
+        # 先调用 __aenter__
+        print("\n  调用 session.__aenter__()...")
+        await session.__aenter__()
+        print("  ✓ session.__aenter__() 成功")
+        
+        # 然后尝试调用 initialize()
+        print("\n  调用 session.initialize()...")
+        try:
+            init_result = await asyncio.wait_for(
+                session.initialize(),
+                timeout=10
+            )
+            print("  ✓ initialize() 成功")
+            if hasattr(init_result, 'serverInfo'):
+                print(f"    服务器信息: {init_result.serverInfo}")
+        except Exception as e:
+            error_msg = str(e)
+            error_type = type(e).__name__
+            if "closed" in error_msg.lower() or "Connection closed" in error_msg or "ClosedResourceError" in error_type:
+                print(f"  ⚠ initialize() 失败：连接已关闭（服务不支持重复初始化）")
+                print(f"     但 __aenter__() 可能已经完成了初始化，继续测试...")
+            else:
+                print(f"  ✗ initialize() 失败: {error_type}: {error_msg}")
                 return False
+        
+        # 尝试调用 list_tools
+        print("\n  调用 session.list_tools()...")
+        try:
+            result = await asyncio.wait_for(
+                session.list_tools(),
+                timeout=10
+            )
+            print(f"  ✓ list_tools() 成功！")
+            print(f"    工具数量: {len(result.tools)}")
+            if result.tools:
+                print(f"    前 3 个工具:")
+                for tool in result.tools[:3]:
+                    print(f"      - {tool.name}: {tool.description[:50] if tool.description else 'N/A'}...")
+            return True
+        except Exception as e:
+            print(f"  ✗ list_tools() 失败: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+        finally:
+            try:
+                await session.__aexit__(None, None, None)
+            except Exception as e:
+                print(f"  警告: 清理 session 时出错: {e}")
+            try:
+                await stdio_transport_context.__aexit__(None, None, None)
+            except Exception as e:
+                print(f"  警告: 清理 stdio 传输时出错: {e}")
                 
     except Exception as e:
         print(f"  ✗ 测试失败: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
         return False
-    finally:
-        try:
-            await stdio_transport_context.__aexit__(None, None, None)
-        except:
-            pass
 
 
 async def main():
     """主函数"""
     print("\n开始测试 tapd MCP 服务连接...\n")
     
-    # 测试 1: 详细测试
+    # 测试 1: 详细测试（先 __aenter__，然后尝试 list_tools，失败则调用 initialize）
     result1 = await test_tapd_connection()
     
-    # 测试 2: 使用 async with 方式
-    result2 = await test_tapd_without_initialize()
+    # 测试 2: 先调用 initialize() 再使用
+    result2 = await test_tapd_with_initialize_first()
     
     print("\n" + "=" * 60)
     print("测试结果总结:")
     print("=" * 60)
-    print(f"  测试 1 (详细测试): {'✓ 成功' if result1 else '✗ 失败'}")
-    print(f"  测试 2 (async with): {'✓ 成功' if result2 else '✗ 失败'}")
+    print(f"  测试 1 (先 __aenter__，失败则 initialize): {'✓ 成功' if result1 else '✗ 失败'}")
+    print(f"  测试 2 (先 initialize 再使用): {'✓ 成功' if result2 else '✗ 失败'}")
     
     if result1 or result2:
         print("\n✓ 至少有一种方式可以成功连接")
+        if result1 and not result2:
+            print("  建议: 使用 __aenter__() 后直接调用 list_tools()，不调用 initialize()")
+        elif result2 and not result1:
+            print("  建议: 需要先调用 initialize() 才能使用")
+        else:
+            print("  两种方式都可以，但建议使用测试 1 的方式（更标准）")
     else:
         print("\n✗ 所有测试都失败，请检查:")
-        print("  1. 环境变量是否正确设置")
-        print("  2. mcp-server-tapd 是否正确安装")
+        print("  1. 环境变量是否正确设置（TAPD_ACCESS_TOKEN, TAPD_API_BASE_URL, TAPD_BASE_URL）")
+        print("  2. mcp-server-tapd 是否正确安装（运行: uvx mcp-server-tapd --help）")
         print("  3. 网络连接是否正常")
+        print("  4. tapd 服务是否正常运行")
 
 
 if __name__ == "__main__":
