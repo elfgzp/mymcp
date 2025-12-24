@@ -8,6 +8,16 @@ from logging.handlers import RotatingFileHandler
 from typing import Optional
 
 
+class FseventsFilter(logging.Filter):
+    """过滤 fsevents 的 DEBUG 日志，不写入文件"""
+    
+    def filter(self, record: logging.LogRecord) -> bool:
+        # 过滤掉 fsevents logger 的 DEBUG 级别日志
+        if record.name == "fsevents" and record.levelno == logging.DEBUG:
+            return False
+        return True
+
+
 def setup_logging(
     log_level: str = "INFO",
     log_file: Optional[str] = None,
@@ -58,6 +68,8 @@ def setup_logging(
         )
         file_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
         file_handler.setFormatter(formatter)
+        # 添加过滤器，过滤掉 fsevents 的 DEBUG 日志
+        file_handler.addFilter(FseventsFilter())
         root_logger.addHandler(file_handler)
         
         logging.info(f"日志文件已配置: {log_path} (最大 {log_max_bytes // 1024 // 1024}MB, 保留 {log_backup_count} 个备份)")
