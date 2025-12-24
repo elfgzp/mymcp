@@ -134,8 +134,8 @@ class McpClientManager:
                         # 标记服务为失败状态，停止后续重试
                         self._connection_status[server_config.name] = f"error: {error_msg[:100]}"
                         # 如果启用了重试，但已达到最大重试次数，停止重试任务
-                        if server_config.retry_on_failure and name in self._retry_tasks:
-                            task = self._retry_tasks[name]
+                        if server_config.retry_on_failure and server_config.name in self._retry_tasks:
+                            task = self._retry_tasks[server_config.name]
                             if not task.done():
                                 task.cancel()
                                 logger.info(f"[{server_config.name}] 已停止重试任务，避免日志污染")
