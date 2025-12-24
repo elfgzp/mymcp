@@ -29,11 +29,14 @@ class McpClientManager:
 
     async def initialize(self) -> None:
         """初始化所有启用的 MCP 服务（异步，不阻塞）"""
-        for server_config in self.config.mcp_servers:
-            if server_config.enabled:
-                # 异步启动，不阻塞主流程
-                task = asyncio.create_task(self._async_add_server(server_config))
-                self._init_tasks[server_config.name] = task
+        enabled_servers = [s for s in self.config.mcp_servers if s.enabled]
+        logger.info(f"开始初始化 {len(enabled_servers)} 个 MCP 服务: {[s.name for s in enabled_servers]}")
+        
+        for server_config in enabled_servers:
+            # 异步启动，不阻塞主流程
+            logger.info(f"创建异步任务连接服务: {server_config.name}")
+            task = asyncio.create_task(self._async_add_server(server_config))
+            self._init_tasks[server_config.name] = task
 
     async def _async_add_server(self, server_config: McpServerConfig) -> None:
         """异步添加 MCP 服务（内部方法）"""
@@ -65,6 +68,20 @@ class McpClientManager:
 
         self._connection_status[server_config.name] = "connecting"
         
+        # 详细日志：连接信息
+        logger.info(f"[{server_config.name}] 开始连接 MCP 服务...")
+        logger.info(f"[{server_config.name}] 命令: {server_config.connection.command or 'uvx'}")
+        logger.info(f"[{server_config.name}] 参数: {server_config.connection.args}")
+        logger.info(f"[{server_config.name}] 超时: {server_config.timeout} 秒")
+        if server_config.env:
+            # 不打印敏感信息，只打印键名
+            env_keys = list(server_config.env.keys())
+            logger.info(f"[{server_config.name}] 环境变量: {env_keys}")
+            # 打印非敏感环境变量的值
+            for key, value in server_config.env.items():
+                if not any(sensitive in key.upper() for sensitive in ['COOKIE', 'TOKEN', 'PASSWORD', 'SECRET', 'KEY']):
+                    logger.debug(f"[{server_config.name}] {key} = {value}")
+        
         try:
             connection = McpConnection(
                 name=server_config.name,
@@ -75,18 +92,25 @@ class McpClientManager:
             )
 
             client = McpClient(server_config.name, connection)
+            logger.info(f"[{server_config.name}] 正在建立连接...")
             await client.connect()
+            logger.info(f"[{server_config.name}] 连接已建立，正在获取工具列表...")
 
             # 获取工具列表
             tools = await client.list_tools()
+            logger.info(f"[{server_config.name}] 获取到 {len(tools)} 个工具")
 
             # 注册工具到命令管理器
+            tool_names = []
             for tool in tools:
                 tool_name = f"{server_config.prefix}_{tool.name}" if server_config.prefix else tool.name
+                tool_names.append(tool_name)
                 self.command_manager.register_mcp_tool(server_config.name, tool, server_config.prefix)
+            logger.debug(f"[{server_config.name}] 已注册工具: {tool_names[:5]}{'...' if len(tool_names) > 5 else ''}")
             
             # 添加到工具索引（如果启用）
             if self.tool_index_manager:
+                indexed_count = 0
                 for tool in tools:
                     self.tool_index_manager.add_tool(
                         tool=tool,
@@ -94,11 +118,13 @@ class McpClientManager:
                         service_description=server_config.description,
                         prefix=server_config.prefix
                     )
+                    indexed_count += 1
+                logger.info(f"[{server_config.name}] 已添加 {indexed_count} 个工具到索引")
 
             self.clients[server_config.name] = client
             self._connection_status[server_config.name] = "connected"
             self._retry_counts[server_config.name] = 0  # 重置重试计数
-            logger.info(f"MCP 服务 {server_config.name} 已连接，工具数量: {len(tools)}")
+            logger.info(f"[{server_config.name}] ✓ MCP 服务连接成功，工具数量: {len(tools)}")
 
             # 如果启用自动重连，启动监控任务
             if server_config.auto_reconnect:
