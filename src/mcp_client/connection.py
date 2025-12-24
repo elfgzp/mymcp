@@ -93,7 +93,8 @@ class McpConnection:
             init_timeout = min(self.timeout, 30)  # 初始化最多30秒
             try:
                 logger.debug(f"[{self.name}] 初始化会话（超时: {init_timeout}秒）...")
-                # 检查 ClientSession 是否需要 init_options
+                # ClientSession.__aenter__() 会自动发送 InitializeRequest
+                # 并等待 InitializedNotification
                 # 如果 Cursor 可以直接使用 Rainbow MCP 服务，说明标准初始化方式应该是有效的
                 init_result = await asyncio.wait_for(
                     self.session.__aenter__(),
