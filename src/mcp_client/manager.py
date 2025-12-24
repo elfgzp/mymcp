@@ -353,8 +353,10 @@ class McpClientManager:
                     break  # 连接成功，退出重试循环
                 except Exception as e:
                     error_msg = str(e)
-                    self._connection_status[name] = f"error: {error_msg}"
-                    logger.warning(f"MCP 服务 {name} 重试连接失败 ({retry_count}/{max_retries}): {e}")
+                    self._connection_status[name] = f"error: {error_msg[:100]}"
+                    # 重试时只记录简要警告，避免日志过多
+                    logger.warning(f"MCP 服务 {name} 重试连接失败 ({retry_count}/{max_retries}): {error_msg[:100]}")
+                    logger.debug(f"详细错误: {e}", exc_info=True)
                     # 如果已达到最大重试次数，退出循环
                     if retry_count >= max_retries:
                         logger.warning(f"MCP 服务 {name} 已达到最大重试次数 ({max_retries})，停止重试")
