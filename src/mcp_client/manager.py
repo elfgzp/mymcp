@@ -122,9 +122,17 @@ class McpClientManager:
                         await asyncio.sleep(retry_delay)
                         retry_delay *= 2  # 指数退避
                     else:
-                        # 最后一次失败时记录完整错误信息
+                        # 最后一次失败时记录完整错误信息，然后停止重试
                         logger.error(f"[{server_config.name}] 获取工具列表失败，已达到最大重试次数: {error_msg}")
                         logger.debug(f"[{server_config.name}] 错误详情: {e}", exc_info=True)
+                        # 标记服务为失败状态，停止后续重试
+                        self._connection_status[server_config.name] = f"error: {error_msg[:100]}"
+                        # 如果启用了重试，但已达到最大重试次数，停止重试任务
+                        if server_config.retry_on_failure and name in self._retry_tasks:
+                            task = self._retry_tasks[name]
+                            if not task.done():
+                                task.cancel()
+                                logger.info(f"[{server_config.name}] 已停止重试任务，避免日志污染")
                         raise
             
             if tools is None:
@@ -309,8 +317,12 @@ class McpClientManager:
                 # 检查重试次数
                 retry_count = self._retry_counts.get(name, 0)
                 if retry_count >= max_retries:
-                    logger.warning(f"MCP 服务 {name} 已达到最大重试次数 ({max_retries})，停止重试")
-                    self._connection_status[name] = f"error: 已达到最大重试次数"
+                    # 达到最大重试次数后，只记录一次警告，然后停止
+                    logger.warning(f"MCP 服务 {name} 已达到最大重试次数 ({max_retries})，停止重试。如需重新尝试，请重启服务或修改配置。")
+                    self._connection_status[name] = f"error: 已达到最大重试次数 ({max_retries})"
+                    # 清理重试计数，避免后续继续重试
+                    if name in self._retry_counts:
+                        del self._retry_counts[name]
                     break
                 
                 # 等待后重试（指数退避，但最小间隔为 retry_delay，最大60秒）
