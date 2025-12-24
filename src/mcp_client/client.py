@@ -51,39 +51,16 @@ class McpClient:
             params_with_defaults = [p for p in sig.parameters.values() if p.default != inspect.Parameter.empty]
             params_without_defaults = [p for p in sig.parameters.values() if p.default == inspect.Parameter.empty]
             
-            if len(params_without_defaults) == 0:
-                # 所有参数都有默认值，可以不传参数
-                if len(sig.parameters) == 0:
-                    result = await self.session.list_tools()
-                else:
-                    # 对于有可选参数的情况，优先不传参数（使用默认值）
-                    # 某些 MCP 服务（如 Rainbow）的装饰器可能不支持带参数的函数签名
-                    logger.debug(f"[{self.name}] list_tools 有可选参数，尝试不传参数（使用默认值）...")
-                    try:
-                        # 首先尝试不传任何参数
-                        result = await self.session.list_tools()
-                    except Exception as e1:
-                        error_msg1 = str(e1)
-                        logger.debug(f"[{self.name}] 不传参数失败: {error_msg1}")
-                        # 如果失败，尝试显式传递 None（按位置参数）
-                        try:
-                            logger.debug(f"[{self.name}] 尝试显式传递 None 作为位置参数...")
-                            result = await self.session.list_tools(None)
-                        except Exception as e2:
-                            error_msg2 = str(e2)
-                            logger.debug(f"[{self.name}] 传递 None 失败: {error_msg2}")
-                            # 最后尝试传递 None 作为关键字参数
-                            try:
-                                logger.debug(f"[{self.name}] 尝试传递 None 作为关键字参数...")
-                                result = await self.session.list_tools(cursor=None, params=None)
-                            except Exception as e3:
-                                # 所有尝试都失败，只记录一次错误（避免重复日志）
-                                # 详细错误信息会在上层重试机制中记录
-                                logger.debug(f"[{self.name}] 所有参数传递方式都失败: {str(e3)}")
-                                raise e3
+            # 简化调用逻辑：直接使用最简单的方式（不传参数）
+            # 如果 Cursor 可以直接使用 Rainbow MCP 服务，说明不传参数的方式是正确的
+            # MCP SDK 的 list_tools 方法应该支持不传参数（使用默认值）
+            if len(sig.parameters) == 0:
+                # 无参数，直接调用
+                result = await self.session.list_tools()
             else:
-                # 有必需参数，需要传递
-                logger.warning(f"[{self.name}] list_tools 有必需参数，可能需要特殊处理")
+                # 有可选参数，直接不传参数（使用默认值）
+                # 这是 MCP SDK 的标准用法，Cursor 也是这样调用的
+                logger.debug(f"[{self.name}] list_tools 有可选参数，使用默认值（不传参数）...")
                 result = await self.session.list_tools()
             
             self._tools_cache = result.tools
