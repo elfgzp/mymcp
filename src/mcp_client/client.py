@@ -45,23 +45,17 @@ class McpClient:
             sig = inspect.signature(self.session.list_tools)
             logger.debug(f"[{self.name}] list_tools 方法签名: {sig}")
             
-            # 根据签名调用（某些 MCP 服务可能需要参数）
-            # 如果参数都有默认值，可以不传参数（使用默认值）
-            # 如果参数没有默认值，需要显式传递 None
-            params_with_defaults = [p for p in sig.parameters.values() if p.default != inspect.Parameter.empty]
-            params_without_defaults = [p for p in sig.parameters.values() if p.default == inspect.Parameter.empty]
+            # 检查 session 的状态，确保已初始化
+            if hasattr(self.session, '_initialized'):
+                logger.debug(f"[{self.name}] session._initialized: {self.session._initialized}")
+            if hasattr(self.session, '_server_info'):
+                logger.debug(f"[{self.name}] session._server_info: {self.session._server_info}")
             
             # 简化调用逻辑：直接使用最简单的方式（不传参数）
             # 如果 Cursor 可以直接使用 Rainbow MCP 服务，说明不传参数的方式是正确的
             # MCP SDK 的 list_tools 方法应该支持不传参数（使用默认值）
-            if len(sig.parameters) == 0:
-                # 无参数，直接调用
-                result = await self.session.list_tools()
-            else:
-                # 有可选参数，直接不传参数（使用默认值）
-                # 这是 MCP SDK 的标准用法，Cursor 也是这样调用的
-                logger.debug(f"[{self.name}] list_tools 有可选参数，使用默认值（不传参数）...")
-                result = await self.session.list_tools()
+            logger.debug(f"[{self.name}] 准备调用 list_tools()（无参数）...")
+            result = await self.session.list_tools()
             
             self._tools_cache = result.tools
             logger.info(f"[{self.name}] ✓ 获取到 {len(self._tools_cache)} 个工具")
