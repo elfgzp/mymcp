@@ -105,26 +105,43 @@ class McpConnection:
                 if init_result:
                     logger.debug(f"[{self.name}] 初始化结果: {type(init_result)}")
                 
-                # 检查 session 是否有 _initialized 属性，如果有则等待初始化完成
-                # 从 Cursor 的日志看，初始化后需要等待 InitializedNotification 才能调用 list_tools
-                if hasattr(self.session, '_initialized'):
-                    logger.debug(f"[{self.name}] 检查 session._initialized 状态...")
-                    # 等待初始化完成（最多等待 2 秒）
-                    max_wait = 2.0
-                    wait_interval = 0.1
-                    waited = 0.0
+                # 等待服务端发送 InitializedNotification
+                # 从测试脚本的日志看，ClientSession.__aenter__() 只发送了 InitializeRequest
+                # 但没有等待 InitializedNotification，需要手动等待
+                # 对于使用 git+ssh 的服务（如 Rainbow），服务端启动需要更长时间
+                logger.debug(f"[{self.name}] 等待服务端发送 InitializedNotification...")
+                max_wait = 10.0  # 对于 git+ssh 服务，增加等待时间到 10 秒
+                wait_interval = 0.1
+                waited = 0.0
+                
+                # 检查 session 是否有 _initialized 属性
+                has_initialized_attr = hasattr(self.session, '_initialized')
+                if has_initialized_attr:
+                    logger.debug(f"[{self.name}] session 有 _initialized 属性，等待初始化完成...")
                     while waited < max_wait:
                         if getattr(self.session, '_initialized', False):
-                            logger.debug(f"[{self.name}] ✓ 会话已初始化完成")
+                            logger.debug(f"[{self.name}] ✓ 检测到初始化完成（等待了 {waited:.2f} 秒）")
                             break
                         await asyncio.sleep(wait_interval)
                         waited += wait_interval
+                        if waited % 1.0 < wait_interval:  # 每 1 秒打印一次
+                            logger.debug(f"[{self.name}] 等待初始化中... ({waited:.2f} 秒)")
+                    
                     if waited >= max_wait:
-                        logger.warning(f"[{self.name}] ⚠️ 等待初始化超时，但继续执行")
+                        logger.warning(f"[{self.name}] ⚠️ 等待初始化超时（{max_wait} 秒），但继续执行")
+                    else:
+                        logger.debug(f"[{self.name}] ✓ 初始化完成，等待了 {waited:.2f} 秒")
                 else:
-                    # 如果没有 _initialized 属性，等待一小段时间确保初始化完成
-                    logger.debug(f"[{self.name}] session 没有 _initialized 属性，等待 0.5 秒...")
-                    await asyncio.sleep(0.5)
+                    # 如果没有 _initialized 属性，对于 git+ssh 服务等待更长时间
+                    # 因为服务端需要时间启动（git clone、安装依赖等）
+                    full_command = " ".join([self.command] + self.args)
+                    if "uvx" in self.command and "git+" in full_command:
+                        wait_time = 3.0  # git+ssh 服务需要更长时间
+                        logger.debug(f"[{self.name}] session 没有 _initialized 属性，等待 {wait_time} 秒（git+ssh 服务）...")
+                    else:
+                        wait_time = 1.0  # 其他服务等待 1 秒
+                        logger.debug(f"[{self.name}] session 没有 _initialized 属性，等待 {wait_time} 秒...")
+                    await asyncio.sleep(wait_time)
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
                 # 清理已创建的流

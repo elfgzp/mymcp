@@ -60,9 +60,27 @@ async def test_rainbow_connection():
         if hasattr(session, '_server_info'):
             logger.info(f"session._server_info: {session._server_info}")
         
-        # 等待一下，确保初始化完成
-        logger.info("等待 1 秒，确保初始化完成...")
-        await asyncio.sleep(1.0)
+        # 等待服务端发送 InitializedNotification
+        # 从错误日志看，需要等待服务端完全初始化
+        logger.info("等待服务端发送 InitializedNotification...")
+        max_wait = 5.0  # 最多等待 5 秒
+        wait_interval = 0.1
+        waited = 0.0
+        
+        # 检查 session 是否有 _initialized 属性
+        while waited < max_wait:
+            if hasattr(session, '_initialized') and getattr(session, '_initialized', False):
+                logger.info(f"✓ 检测到初始化完成（等待了 {waited:.2f} 秒）")
+                break
+            await asyncio.sleep(wait_interval)
+            waited += wait_interval
+            if waited % 0.5 < wait_interval:  # 每 0.5 秒打印一次
+                logger.debug(f"等待初始化中... ({waited:.2f} 秒)")
+        
+        if waited >= max_wait:
+            logger.warning(f"⚠️ 等待初始化超时（{max_wait} 秒），但继续尝试调用 list_tools")
+        else:
+            logger.info(f"✓ 初始化完成，等待了 {waited:.2f} 秒")
         
         logger.info("调用 list_tools()...")
         try:
