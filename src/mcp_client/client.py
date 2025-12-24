@@ -98,6 +98,21 @@ class McpClient:
             if should_try_initialize:
                 logger.debug(f"[{self.name}] list_tools() 失败，可能是未完全初始化，尝试调用 initialize()...")
                 logger.debug(f"[{self.name}] 错误类型: {error_type}, 错误消息: {error_msg}")
+                
+                # 如果错误是 "Connection closed"，说明连接已关闭，需要重新建立连接
+                if "Connection closed" in error_msg and error_type == "McpError":
+                    logger.debug(f"[{self.name}] 连接已关闭，重新建立连接...")
+                    # 标记连接为失败，强制重新连接
+                    self.connection._connected = False
+                    try:
+                        await self.disconnect()
+                    except Exception as cleanup_error:
+                        logger.debug(f"[{self.name}] 清理连接时出错: {cleanup_error}")
+                    
+                    # 重新建立连接
+                    await self.connect()
+                    logger.debug(f"[{self.name}] 重新连接成功，尝试调用 initialize()...")
+                
                 try:
                     init_result = await self.session.initialize()
                     logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
