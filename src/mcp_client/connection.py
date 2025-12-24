@@ -93,11 +93,16 @@ class McpConnection:
             init_timeout = min(self.timeout, 30)  # 初始化最多30秒
             try:
                 logger.debug(f"[{self.name}] 初始化会话（超时: {init_timeout}秒）...")
-                await asyncio.wait_for(
+                # 检查 ClientSession 是否需要 init_options
+                # 如果 Cursor 可以直接使用 Rainbow MCP 服务，说明标准初始化方式应该是有效的
+                init_result = await asyncio.wait_for(
                     self.session.__aenter__(),
                     timeout=init_timeout
                 )
                 logger.debug(f"[{self.name}] 会话初始化成功")
+                # 记录初始化结果（如果有的话）
+                if init_result:
+                    logger.debug(f"[{self.name}] 初始化结果: {type(init_result)}")
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
                 # 清理已创建的流
