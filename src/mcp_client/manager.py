@@ -102,8 +102,11 @@ class McpClientManager:
             await client.connect()
             logger.info(f"[{server_config.name}] 连接已建立，等待服务完全启动...")
             
-            # 等待一小段时间，确保服务完全启动（某些服务需要时间初始化）
-            await asyncio.sleep(0.5)
+            # 等待初始化完成（包括 InitializedNotification）
+            # 从 Cursor 的日志看，初始化后需要等待 InitializedNotification 才能调用 list_tools
+            # 增加等待时间，确保初始化完全完成
+            await asyncio.sleep(1.0)
+            logger.debug(f"[{server_config.name}] 等待初始化完成...")
             
             logger.info(f"[{server_config.name}] 正在获取工具列表...")
 
