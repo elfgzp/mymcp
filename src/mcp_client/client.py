@@ -37,12 +37,30 @@ class McpClient:
             await self.connect()
 
         try:
+            # 尝试获取工具列表
+            logger.debug(f"[{self.name}] 调用 session.list_tools()...")
             result = await self.session.list_tools()
             self._tools_cache = result.tools
-            logger.debug(f"MCP 客户端 {self.name} 获取到 {len(self._tools_cache)} 个工具")
+            logger.info(f"[{self.name}] ✓ 获取到 {len(self._tools_cache)} 个工具")
             return self._tools_cache
         except Exception as e:
-            logger.error(f"获取 MCP 客户端 {self.name} 工具列表失败: {e}", exc_info=True)
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.error(f"[{self.name}] ✗ 获取工具列表失败: {error_type}: {error_msg}")
+            logger.error(f"[{self.name}] 错误详情: {e}", exc_info=True)
+            
+            # 如果是 "Invalid request parameters" 错误，可能是服务需要特殊初始化
+            # 尝试获取 capabilities 看看服务支持什么
+            if "Invalid request parameters" in error_msg or "invalid" in error_msg.lower():
+                try:
+                    logger.debug(f"[{self.name}] 尝试获取服务器 capabilities...")
+                    # 检查 session 是否有 initialize_result
+                    if hasattr(self.session, 'initialize_result'):
+                        init_result = self.session.initialize_result
+                        logger.debug(f"[{self.name}] 服务器 capabilities: {init_result.capabilities if hasattr(init_result, 'capabilities') else 'N/A'}")
+                except Exception as cap_error:
+                    logger.debug(f"[{self.name}] 获取 capabilities 失败: {cap_error}")
+            
             raise
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
