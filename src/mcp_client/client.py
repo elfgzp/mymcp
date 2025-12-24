@@ -46,11 +46,28 @@ class McpClient:
             logger.debug(f"[{self.name}] list_tools 方法签名: {sig}")
             
             # 根据签名调用（某些 MCP 服务可能需要参数）
-            if len(sig.parameters) == 0:
-                result = await self.session.list_tools()
+            # 如果参数都有默认值，可以不传参数（使用默认值）
+            # 如果参数没有默认值，需要显式传递 None
+            params_with_defaults = [p for p in sig.parameters.values() if p.default != inspect.Parameter.empty]
+            params_without_defaults = [p for p in sig.parameters.values() if p.default == inspect.Parameter.empty]
+            
+            if len(params_without_defaults) == 0:
+                # 所有参数都有默认值，可以不传参数
+                if len(sig.parameters) == 0:
+                    result = await self.session.list_tools()
+                else:
+                    # 显式传递 None 作为参数，确保兼容性
+                    logger.debug(f"[{self.name}] list_tools 有可选参数，使用默认值调用...")
+                    # 尝试不传参数（使用默认值）
+                    try:
+                        result = await self.session.list_tools()
+                    except Exception as e:
+                        # 如果失败，尝试显式传递 None
+                        logger.debug(f"[{self.name}] 使用默认值失败，尝试显式传递 None...")
+                        result = await self.session.list_tools(None, params=None)
             else:
-                # 如果有参数，尝试传递空参数
-                logger.debug(f"[{self.name}] list_tools 需要参数，尝试传递空参数...")
+                # 有必需参数，需要传递
+                logger.warning(f"[{self.name}] list_tools 有必需参数，可能需要特殊处理")
                 result = await self.session.list_tools()
             
             self._tools_cache = result.tools
