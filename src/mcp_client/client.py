@@ -56,15 +56,30 @@ class McpClient:
                 if len(sig.parameters) == 0:
                     result = await self.session.list_tools()
                 else:
-                    # 显式传递 None 作为参数，确保兼容性
-                    logger.debug(f"[{self.name}] list_tools 有可选参数，使用默认值调用...")
-                    # 尝试不传参数（使用默认值）
+                    # 对于有可选参数的情况，优先不传参数（使用默认值）
+                    # 某些 MCP 服务（如 Rainbow）的装饰器可能不支持带参数的函数签名
+                    logger.debug(f"[{self.name}] list_tools 有可选参数，尝试不传参数（使用默认值）...")
                     try:
+                        # 首先尝试不传任何参数
                         result = await self.session.list_tools()
-                    except Exception as e:
-                        # 如果失败，尝试显式传递 None
-                        logger.debug(f"[{self.name}] 使用默认值失败，尝试显式传递 None...")
-                        result = await self.session.list_tools(None, params=None)
+                    except Exception as e1:
+                        error_msg1 = str(e1)
+                        logger.debug(f"[{self.name}] 不传参数失败: {error_msg1}")
+                        # 如果失败，尝试显式传递 None（按位置参数）
+                        try:
+                            logger.debug(f"[{self.name}] 尝试显式传递 None 作为位置参数...")
+                            result = await self.session.list_tools(None)
+                        except Exception as e2:
+                            error_msg2 = str(e2)
+                            logger.debug(f"[{self.name}] 传递 None 失败: {error_msg2}")
+                            # 最后尝试传递 None 作为关键字参数
+                            try:
+                                logger.debug(f"[{self.name}] 尝试传递 None 作为关键字参数...")
+                                result = await self.session.list_tools(cursor=None, params=None)
+                            except Exception as e3:
+                                # 所有尝试都失败，抛出最后一个错误
+                                logger.error(f"[{self.name}] 所有参数传递方式都失败，使用最后一个错误")
+                                raise e3
             else:
                 # 有必需参数，需要传递
                 logger.warning(f"[{self.name}] list_tools 有必需参数，可能需要特殊处理")
