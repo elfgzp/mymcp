@@ -229,18 +229,18 @@ class McpServer:
         config_manager = ConfigManager(config_path)
         config = config_manager.load_config()
         
-        # 配置日志系统
+        # 配置日志系统（使用默认路径如果未配置）
+        log_file_path = config.global_config.get_log_file_path()
         setup_logging(
             log_level=config.global_config.log_level,
-            log_file=config.global_config.log_file,
+            log_file=log_file_path,
             log_max_bytes=config.global_config.log_max_bytes,
             log_backup_count=config.global_config.log_backup_count
         )
         
         logger.info(f"MyMCP 服务器启动，配置文件: {config_path}")
         logger.info(f"日志级别: {config.global_config.log_level}")
-        if config.global_config.log_file:
-            logger.info(f"日志文件: {config.global_config.log_file}")
+        logger.info(f"日志文件: {log_file_path}")
         
         server = cls(config_path)
         await server.run()

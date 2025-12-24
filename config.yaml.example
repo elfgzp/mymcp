@@ -103,7 +103,10 @@ global:
   max_retries: 3
   retry_delay: 1
   log_level: "INFO"
-  log_file: "mcp.log"
+  # log_file: null  # 日志文件路径，如果为 null 或不设置，则使用默认路径 ~/.config/mymcp/mymcp.log
+  # 也可以自定义路径，如: "mcp.log" 或 "~/.cursor/mymcp.log"（支持 ~ 扩展）
+  log_max_bytes: 10485760  # 单个日志文件最大大小（10MB）
+  log_backup_count: 5  # 保留的日志文件数量（会生成 mymcp.log, mymcp.log.1, mymcp.log.2 等）
   hot_reload: true
   hot_reload_interval: 2
   
