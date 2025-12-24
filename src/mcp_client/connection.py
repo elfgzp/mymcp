@@ -115,29 +115,41 @@ class McpConnection:
                 if hasattr(self._read_stream, 'closed') and self._read_stream.closed:
                     raise ConnectionError(f"[{self.name}] 读取流已关闭，无法初始化")
                 
-                # 显式调用 initialize() 方法，确保初始化完成
-                # 从测试脚本发现，ClientSession.__aenter__() 可能只发送了 InitializeRequest
-                # 但没有等待 InitializedNotification，需要显式调用 initialize() 来确保初始化完成
-                logger.debug(f"[{self.name}] 显式调用 initialize() 方法确保初始化完成...")
-                try:
-                    init_result2 = await self.session.initialize()
-                    logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
-                    if hasattr(init_result2, 'serverInfo'):
-                        logger.debug(f"[{self.name}] 服务器信息: {init_result2.serverInfo}")
-                except Exception as e:
-                    error_msg = str(e)
-                    # 如果错误信息包含 "closed" 或 "Connection closed"，说明连接已关闭
-                    if "closed" in error_msg.lower() or "Connection closed" in error_msg:
-                        logger.error(f"[{self.name}] initialize() 调用失败：连接已关闭: {e}")
-                        # 清理连接
-                        self._connected = False
-                        try:
-                            await stdio_transport_context.__aexit__(None, None, None)
-                        except Exception as cleanup_error:
-                            logger.warning(f"[{self.name}] 清理 stdio 传输时出错: {cleanup_error}")
-                        raise ConnectionError(f"[{self.name}] 连接在初始化过程中关闭: {e}")
-                    # 其他错误（如已经初始化）可以忽略
-                    logger.debug(f"[{self.name}] initialize() 调用失败（可能已经初始化）: {e}")
+                # ClientSession.__aenter__() 已经完成了初始化（发送 InitializeRequest 并等待 InitializedNotification）
+                # 检查 session 是否已经初始化
+                is_initialized = False
+                if hasattr(self.session, '_initialized'):
+                    is_initialized = self.session._initialized
+                elif hasattr(self.session, '_server_info') and self.session._server_info is not None:
+                    is_initialized = True
+                
+                if is_initialized:
+                    logger.debug(f"[{self.name}] 会话已通过 __aenter__() 初始化，跳过 initialize() 调用")
+                    if hasattr(self.session, '_server_info') and self.session._server_info:
+                        logger.debug(f"[{self.name}] 服务器信息: {self.session._server_info}")
+                else:
+                    # 如果 __aenter__() 没有完成初始化，尝试显式调用 initialize()
+                    # 注意：某些服务（如 tapd）可能不支持重复初始化，如果 __aenter__() 已经初始化，再次调用会导致连接关闭
+                    logger.debug(f"[{self.name}] 会话未完全初始化，尝试调用 initialize() 方法...")
+                    try:
+                        init_result2 = await asyncio.wait_for(
+                            self.session.initialize(),
+                            timeout=10
+                        )
+                        logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
+                        if hasattr(init_result2, 'serverInfo'):
+                            logger.debug(f"[{self.name}] 服务器信息: {init_result2.serverInfo}")
+                    except Exception as e:
+                        error_msg = str(e)
+                        # 如果错误信息包含 "closed" 或 "Connection closed"，说明连接已关闭
+                        # 这通常意味着服务不支持重复初始化，但 __aenter__() 已经完成了初始化
+                        if "closed" in error_msg.lower() or "Connection closed" in error_msg:
+                            logger.warning(f"[{self.name}] initialize() 调用失败：连接已关闭（可能已通过 __aenter__() 初始化）: {e}")
+                            # 不抛出异常，因为 __aenter__() 可能已经完成了初始化
+                            # 尝试继续使用 session，如果后续调用失败再处理
+                        else:
+                            # 其他错误，记录但不中断连接
+                            logger.debug(f"[{self.name}] initialize() 调用失败（可能已经初始化）: {e}")
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
                 # 清理已创建的流
