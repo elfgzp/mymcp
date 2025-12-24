@@ -109,10 +109,29 @@ class McpClient:
                     except Exception as cleanup_error:
                         logger.debug(f"[{self.name}] 清理连接时出错: {cleanup_error}")
                     
-                    # 重新建立连接
+                    # 重新建立连接（__aenter__() 会再次初始化）
                     await self.connect()
-                    logger.debug(f"[{self.name}] 重新连接成功，尝试调用 initialize()...")
+                    logger.debug(f"[{self.name}] 重新连接成功")
+                    
+                    # 重新连接后，__aenter__() 已经初始化了，先尝试直接调用 list_tools()
+                    try:
+                        logger.debug(f"[{self.name}] 重新连接后，尝试直接调用 list_tools()...")
+                        result = await self.session.list_tools()
+                        self._tools_cache = result.tools
+                        logger.info(f"[{self.name}] ✓ 获取到 {len(self._tools_cache)} 个工具（重新连接后）")
+                        return self._tools_cache
+                    except Exception as retry_error:
+                        retry_error_msg = str(retry_error)
+                        retry_error_type = type(retry_error).__name__
+                        logger.debug(f"[{self.name}] 重新连接后 list_tools() 失败: {retry_error_type}: {retry_error_msg}")
+                        # 如果失败且是初始化相关错误，尝试调用 initialize()
+                        if "Invalid request parameters" in retry_error_msg or "request before initialization" in retry_error_msg.lower():
+                            logger.debug(f"[{self.name}] 尝试调用 initialize()...")
+                        else:
+                            # 其他错误，直接抛出
+                            raise
                 
+                # 尝试调用 initialize()（只有在未重新连接或重新连接后 list_tools() 失败时才执行）
                 try:
                     init_result = await self.session.initialize()
                     logger.debug(f"[{self.name}] ✓ initialize() 调用成功")
