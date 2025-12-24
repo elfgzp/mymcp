@@ -103,6 +103,11 @@ class McpConnection:
                 # 记录初始化结果（如果有的话）
                 if init_result:
                     logger.debug(f"[{self.name}] 初始化结果: {type(init_result)}")
+                
+                # 等待一下，确保 InitializedNotification 已发送
+                # 从 Cursor 的日志看，初始化后需要等待 InitializedNotification 才能调用 list_tools
+                await asyncio.sleep(0.2)
+                logger.debug(f"[{self.name}] 等待 InitializedNotification 完成...")
             except asyncio.TimeoutError:
                 logger.error(f"[{self.name}] 会话初始化超时（{init_timeout} 秒）")
                 # 清理已创建的流
