@@ -56,6 +56,18 @@ class McpServer:
             tool_index_manager=self.tool_index_manager
         )
         
+        # 如果启用工具代理模式，将本地命令也添加到索引中
+        if self.tool_index_manager:
+            for cmd in self.config.commands:
+                if cmd.enabled:
+                    tool = self.command_manager._command_to_tool(cmd)
+                    self.tool_index_manager.add_tool(
+                        tool=tool,
+                        service_name="local",
+                        service_description="本地命令",
+                        prefix=None
+                    )
+        
         # 设置配置变更回调
         self.config_manager.on_config_changed = self._on_config_changed
         
@@ -79,12 +91,16 @@ class McpServer:
                     self.mcp_client_manager,
                     self.config
                 )
-                # 仍然包含本地命令
-                local_tools = []
-                for cmd in self.config.commands:
-                    if cmd.enabled:
-                        local_tools.append(self.command_manager._command_to_tool(cmd))
-                return local_tools + proxy_tools
+                # 根据配置决定是否暴露本地命令
+                if self.config.global_config.tool_proxy.expose_local_commands:
+                    local_tools = []
+                    for cmd in self.config.commands:
+                        if cmd.enabled:
+                            local_tools.append(self.command_manager._command_to_tool(cmd))
+                    return local_tools + proxy_tools
+                else:
+                    # 代理模式下不直接暴露本地命令，需要通过搜索和执行工具访问
+                    return proxy_tools
             else:
                 # 传统模式：返回所有工具
                 return self.command_manager.get_all_tools()
@@ -120,7 +136,8 @@ class McpServer:
                             self.mcp_client_manager,
                             self.config,
                             tool_name,
-                            tool_arguments
+                            tool_arguments,
+                            command_manager=self.command_manager
                         )
                         import json
                         return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]

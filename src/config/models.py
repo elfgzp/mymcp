@@ -121,6 +121,7 @@ class ToolProxyConfig(BaseModel):
     enable_execute: bool = True
     enable_list_services: bool = True
     search_limit: int = 20
+    expose_local_commands: bool = False  # 是否暴露本地命令（默认不暴露，通过搜索和执行访问）
 
 
 class GlobalConfig(BaseModel):

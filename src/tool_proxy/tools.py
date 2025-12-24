@@ -128,7 +128,8 @@ async def handle_execute_tool(
     mcp_client_manager: McpClientManager,
     config: Config,
     tool_name: str,
-    arguments: Dict[str, Any]
+    arguments: Dict[str, Any],
+    command_manager = None
 ) -> Dict[str, Any]:
     """处理工具执行"""
     # 查找工具索引
@@ -155,22 +156,40 @@ async def handle_execute_tool(
         }
     
     try:
-        # 调用 MCP 服务工具
-        result = await mcp_client_manager.call_tool(
-            tool_index.service_name,
-            tool_index.name,  # 使用原始名称
-            arguments
-        )
-        
-        # 转换结果格式
-        contents = []
-        for content in result.content:
-            if content.type == "text":
-                contents.append(content.text)
-            else:
-                contents.append(str(content))
-        
-        result_text = "\n".join(contents) if len(contents) > 1 else (contents[0] if contents else "")
+        # 如果是本地命令，使用 command_manager 执行
+        if tool_index.service_name == "local":
+            if not command_manager:
+                return {
+                    "success": False,
+                    "error": "命令管理器未初始化",
+                    "result": None
+                }
+            result = await command_manager.call_tool(tool_index.name, arguments)
+            # 转换结果格式
+            contents = []
+            for content in result:
+                if content.type == "text":
+                    contents.append(content.text)
+                else:
+                    contents.append(str(content))
+            result_text = "\n".join(contents) if len(contents) > 1 else (contents[0] if contents else "")
+        else:
+            # 调用 MCP 服务工具
+            result = await mcp_client_manager.call_tool(
+                tool_index.service_name,
+                tool_index.name,  # 使用原始名称
+                arguments
+            )
+            
+            # 转换结果格式
+            contents = []
+            for content in result.content:
+                if content.type == "text":
+                    contents.append(content.text)
+                else:
+                    contents.append(str(content))
+            
+            result_text = "\n".join(contents) if len(contents) > 1 else (contents[0] if contents else "")
         
         return {
             "success": True,
