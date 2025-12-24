@@ -133,10 +133,13 @@ class McpClientManager:
         except Exception as e:
             error_msg = str(e)
             self._connection_status[server_config.name] = f"error: {error_msg}"
-            logger.error(f"连接 MCP 服务 {server_config.name} 失败: {e}")
+            logger.error(f"[{server_config.name}] ✗ 连接 MCP 服务失败: {e}", exc_info=True)
+            logger.error(f"[{server_config.name}] 错误类型: {type(e).__name__}")
+            logger.error(f"[{server_config.name}] 错误详情: {error_msg}")
             
             # 只有在不跳过重试且启用重试时才启动重试任务
             if not skip_retry and server_config.retry_on_failure:
+                logger.info(f"[{server_config.name}] 将启动重试任务...")
                 self._start_retry_task(server_config)
             raise
 
