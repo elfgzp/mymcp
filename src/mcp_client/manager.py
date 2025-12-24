@@ -94,11 +94,38 @@ class McpClientManager:
             client = McpClient(server_config.name, connection)
             logger.info(f"[{server_config.name}] 正在建立连接...")
             await client.connect()
-            logger.info(f"[{server_config.name}] 连接已建立，正在获取工具列表...")
+            logger.info(f"[{server_config.name}] 连接已建立，等待服务完全启动...")
+            
+            # 等待一小段时间，确保服务完全启动（某些服务需要时间初始化）
+            await asyncio.sleep(0.5)
+            
+            logger.info(f"[{server_config.name}] 正在获取工具列表...")
 
-            # 获取工具列表
-            tools = await client.list_tools()
-            logger.info(f"[{server_config.name}] 获取到 {len(tools)} 个工具")
+            # 获取工具列表（带重试机制）
+            max_retries = 3
+            retry_delay = 1.0
+            tools = None
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    tools = await client.list_tools()
+                    logger.info(f"[{server_config.name}] ✓ 获取到 {len(tools)} 个工具")
+                    break
+                except Exception as e:
+                    last_error = e
+                    error_msg = str(e)
+                    if attempt < max_retries - 1:
+                        logger.warning(f"[{server_config.name}] 获取工具列表失败 (尝试 {attempt + 1}/{max_retries}): {error_msg}")
+                        logger.info(f"[{server_config.name}] 等待 {retry_delay} 秒后重试...")
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # 指数退避
+                    else:
+                        logger.error(f"[{server_config.name}] 获取工具列表失败，已达到最大重试次数")
+                        raise
+            
+            if tools is None:
+                raise last_error or Exception("获取工具列表失败")
 
             # 注册工具到命令管理器
             tool_names = []
