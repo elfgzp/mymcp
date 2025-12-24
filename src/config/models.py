@@ -170,6 +170,12 @@ class Config(BaseModel):
             if cmd.script and cmd.script.env:
                 for key, value in cmd.script.env.items():
                     cmd.script.env[key] = self._resolve_env(value)
+        
+        # 解析 MCP 服务配置中的环境变量
+        for server in self.mcp_servers:
+            if server.env:
+                for key, value in server.env.items():
+                    server.env[key] = self._resolve_env(value)
 
     @staticmethod
     def _resolve_env(value: str) -> str:
