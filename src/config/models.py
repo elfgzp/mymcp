@@ -132,7 +132,7 @@ class GlobalConfig(BaseModel):
     log_level: str = "INFO"
     log_file: Optional[str] = Field(
         default=None,
-        description="日志文件路径，如果为 None 则使用默认路径 ~/.config/mymcp/mymcp.log"
+        description="日志文件路径，如果为 None 则使用默认路径 ~/.mymcp/mymcp.log"
     )
     log_max_bytes: int = 10 * 1024 * 1024  # 单个日志文件最大大小（默认 10MB）
     log_backup_count: int = 5  # 保留的日志文件数量（默认 5 个）
@@ -145,10 +145,10 @@ class GlobalConfig(BaseModel):
         """获取日志文件路径（如果未设置则返回默认路径）"""
         if self.log_file is not None:
             return self.log_file
-        # 默认路径：~/.config/mymcp/mymcp.log
+        # 默认路径：~/.mymcp/mymcp.log
         import os
         from pathlib import Path
-        default_path = Path.home() / ".config" / "mymcp" / "mymcp.log"
+        default_path = Path.home() / ".mymcp" / "mymcp.log"
         return str(default_path)
 
 
