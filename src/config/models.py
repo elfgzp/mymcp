@@ -130,7 +130,9 @@ class GlobalConfig(BaseModel):
     max_retries: int = 3
     retry_delay: int = 1
     log_level: str = "INFO"
-    log_file: Optional[str] = None
+    log_file: Optional[str] = None  # 日志文件路径，如果设置则启用文件日志
+    log_max_bytes: int = 10 * 1024 * 1024  # 单个日志文件最大大小（默认 10MB）
+    log_backup_count: int = 5  # 保留的日志文件数量（默认 5 个）
     hot_reload: bool = True
     hot_reload_interval: int = 2
     tool_proxy_mode: bool = False  # 启用工具代理模式

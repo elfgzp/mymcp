@@ -21,6 +21,7 @@ from .tool_proxy.tools import (
     handle_execute_tool,
     handle_list_services
 )
+from .utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -224,13 +225,22 @@ class McpServer:
     @classmethod
     async def main(cls, config_path: str) -> None:
         """主函数"""
-        import sys
-        # 将日志输出到 stderr，避免干扰 MCP 协议的 stdout
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            stream=sys.stderr
+        # 先加载配置以获取日志设置
+        config_manager = ConfigManager(config_path)
+        config = config_manager.load_config()
+        
+        # 配置日志系统
+        setup_logging(
+            log_level=config.global_config.log_level,
+            log_file=config.global_config.log_file,
+            log_max_bytes=config.global_config.log_max_bytes,
+            log_backup_count=config.global_config.log_backup_count
         )
+        
+        logger.info(f"MyMCP 服务器启动，配置文件: {config_path}")
+        logger.info(f"日志级别: {config.global_config.log_level}")
+        if config.global_config.log_file:
+            logger.info(f"日志文件: {config.global_config.log_file}")
         
         server = cls(config_path)
         await server.run()
