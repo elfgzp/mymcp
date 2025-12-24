@@ -49,12 +49,18 @@ class McpClientManager:
         try:
             await self.add_server(server_config, skip_retry=True)  # 首次连接不自动重试
         except Exception as e:
-            self._connection_status[server_config.name] = f"error: {str(e)}"
-            logger.error(f"异步连接 MCP 服务 {server_config.name} 失败: {e}")
+            error_msg = str(e)
+            self._connection_status[server_config.name] = f"error: {error_msg[:100]}"
+            # 只记录简要错误，避免日志过多
+            logger.error(f"异步连接 MCP 服务 {server_config.name} 失败: {error_msg[:100]}")
+            logger.debug(f"详细错误: {e}", exc_info=True)
             
             # 如果启用重试，启动重试任务
             if server_config.retry_on_failure:
                 self._start_retry_task(server_config)
+            else:
+                # 如果未启用重试，直接标记为失败并停止
+                logger.info(f"MCP 服务 {server_config.name} 未启用重试，停止连接尝试")
 
     async def add_server(self, server_config: McpServerConfig, skip_retry: bool = False) -> None:
         """添加 MCP 服务"""
